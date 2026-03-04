@@ -1,0 +1,392 @@
+---
+title: 'Alert History'
+description: 'View and filter historical alert data with detailed status tracking'
+icon: 'clock-rotate-left'
+---
+
+## Overview
+
+The Alert History panel (`src/pages/PanelDeAlertas.tsx`) provides a comprehensive view of all past and current alerts in the FleetGuard360 system. Operators can filter alerts by multiple criteria and track alert resolution status.
+
+## Historical Alert Display
+
+Alerts are displayed in a table with complete details:
+
+<CardGroup cols={2}>
+  <Card title="Alert Information" icon="info-circle">
+    Type, responsible area, priority level, and generation timestamp
+  </Card>
+  
+  <Card title="Vehicle Details" icon="truck">
+    Generating unit identifier and driver information
+  </Card>
+  
+  <Card title="Status Tracking" icon="list-check">
+    Real-time status: En espera, En proceso, or Resuelto
+  </Card>
+  
+  <Card title="Filtering Options" icon="filter">
+    Filter by type, area, priority, unit, driver, or status
+  </Card>
+</CardGroup>
+
+## Table Columns
+
+The alert history table displays the following information:
+
+```tsx PanelDeAlertas.tsx:272-282
+<TableHeader>
+  <TableRow className="border-gray-700 hover:bg-transparent">
+    <TableHead className="font-semibold text-[#E5E7EB] h-12">Tipo</TableHead>
+    <TableHead className="font-semibold text-[#E5E7EB]">Responsable</TableHead>
+    <TableHead className="font-semibold text-[#E5E7EB]">Prioridad</TableHead>
+    <TableHead className="font-semibold text-[#E5E7EB]">Unidad</TableHead>
+    <TableHead className="font-semibold text-[#E5E7EB]">Conductor</TableHead>
+    <TableHead className="font-semibold text-[#E5E7EB]">Generado</TableHead>
+    <TableHead className="font-semibold text-[#E5E7EB]">Estado</TableHead>
+  </TableRow>
+</TableHeader>
+```
+
+<ParamField path="tipo" type="string">
+  Alert type name (e.g., "Exceso de velocidad", "Frenado brusco")
+</ParamField>
+
+<ParamField path="responsable" type="string">
+  Responsible area assigned to handle the alert
+</ParamField>
+
+<ParamField path="prioridad" type="string">
+  Priority level: Alta, Media, or Baja
+</ParamField>
+
+<ParamField path="unidad" type="string">
+  Vehicle or unit identifier that generated the alert
+</ParamField>
+
+<ParamField path="conductor" type="string">
+  Driver name associated with the alert event
+</ParamField>
+
+<ParamField path="generado" type="datetime">
+  Timestamp when the alert was generated (formatted as DD/MM/YYYY HH:mm)
+</ParamField>
+
+<ParamField path="estado" type="string">
+  Current alert status: En espera, En proceso, or Resuelto
+</ParamField>
+
+## Loading Alert History
+
+Alerts are fetched from the backend using GraphQL:
+
+```graphql PanelDeAlertas.tsx:50-63
+query GetAllAlerts {
+  getAllAlerts {
+    id
+    alertType
+    responsible
+    priority
+    driver
+    generatingUnit
+    state
+    generationDate
+  }
+}
+```
+
+### Data Transformation
+
+The response is mapped to the display structure:
+
+```tsx PanelDeAlertas.tsx:70-79
+const transformedAlerts: Alert[] = result.getAllAlerts.map((alert) => ({
+  id: alert.id,
+  tipo: alert.alertType,
+  responsable: alert.responsible,
+  prioridad: alert.priority,
+  unidad: alert.generatingUnit,
+  conductor: alert.driver,
+  generado: alert.generationDate,
+  estado: alert.state,
+}));
+```
+
+## Filter Options
+
+The panel provides six filter dropdowns for precise alert searching:
+
+### Available Filters
+
+<Tabs>
+  <Tab title="Alert Type">
+    Filter by specific alert types:
+    ```tsx
+    - Exceso de velocidad
+    - Frenado brusco
+    - Entrada a geocerca
+    - Motor apagado
+    - Batería baja
+    ```
+  </Tab>
+  
+  <Tab title="Responsible Area">
+    Filter by department:
+    ```tsx
+    - Área de monitoreo
+    - Mantenimiento
+    - Logística
+    - Taller mecánico
+    ```
+  </Tab>
+  
+  <Tab title="Priority">
+    Filter by urgency level:
+    ```tsx
+    - Alta (High)
+    - Media (Medium)
+    - Baja (Low)
+    ```
+  </Tab>
+  
+  <Tab title="Unit">
+    Filter by vehicle identifier:
+    ```tsx
+    - Camión-123
+    - Furgoneta-456
+    - Coche-789
+    - Autobús-101
+    ```
+  </Tab>
+  
+  <Tab title="Driver">
+    Filter by driver name:
+    ```tsx
+    - Ana Gómez
+    - Carlos Sanchez
+    - Laura Fernandez
+    - David Lopez
+    ```
+  </Tab>
+  
+  <Tab title="Status">
+    Filter by resolution status:
+    ```tsx
+    - En espera (Pending)
+    - En proceso (In Progress)
+    - Resuelto (Resolved)
+    ```
+  </Tab>
+</Tabs>
+
+## Date Formatting
+
+Alerts timestamps are formatted for readability:
+
+```tsx PanelDeAlertas.tsx:114-128
+const formatDate = (isoDate: string) => {
+  try {
+    const date = new Date(isoDate);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+  } catch (error) {
+    console.error("Error formateando fecha:", error);
+    return isoDate;
+  }
+};
+```
+
+**Example Output:** `04/03/2026 14:35`
+
+<Note>
+  Dates are formatted in DD/MM/YYYY HH:mm format for Spanish-speaking users. The function includes error handling to return the original ISO date string if formatting fails.
+</Note>
+
+## Priority Color Coding
+
+Priority badges use color coding for quick visual identification:
+
+```tsx PanelDeAlertas.tsx:100-112
+const getPriorityColor = (prioridad: string) => {
+  const prioridadLower = prioridad.toLowerCase().trim();
+  if (prioridadLower.includes("alta") || prioridadLower === "high") {
+    return "bg-red-600 text-white font-semibold";
+  }
+  if (prioridadLower.includes("media") || prioridadLower === "medium") {
+    return "bg-yellow-500 text-gray-900 font-semibold";
+  }
+  if (prioridadLower.includes("baja") || prioridadLower === "low") {
+    return "bg-green-600 text-white font-semibold";
+  }
+  return "bg-gray-500 text-white";
+};
+```
+
+<CardGroup cols={3}>
+  <Card title="Alta / High" icon="circle" color="#dc2626">
+    Red badge - Critical priority
+  </Card>
+  
+  <Card title="Media / Medium" icon="circle" color="#eab308">
+    Yellow badge - Medium priority
+  </Card>
+  
+  <Card title="Baja / Low" icon="circle" color="#16a34a">
+    Green badge - Low priority
+  </Card>
+</CardGroup>
+
+## Status Badges
+
+Alert status is displayed with color-coded badges:
+
+```tsx PanelDeAlertas.tsx:130-149
+const getEstadoColor = (estado: string) => {
+  const estadoLower = estado.toLowerCase().trim();
+  
+  if (estadoLower.includes("espera") || estadoLower === "pending" || estadoLower === "en espera") {
+    return "bg-yellow-500 text-gray-900 font-semibold";
+  }
+  if (estadoLower.includes("proceso") || estadoLower === "in progress" || estadoLower === "en proceso") {
+    return "bg-blue-600 text-white font-semibold";
+  }
+  if (estadoLower.includes("resuelto") || estadoLower === "resolved") {
+    return "bg-green-600 text-white font-semibold";
+  }
+  
+  return "bg-gray-500 text-white";
+};
+```
+
+### Status Types
+
+<Tabs>
+  <Tab title="En espera (Pending)">
+    **Color:** Yellow (`bg-yellow-500`)  
+    **Meaning:** Alert has been received but not yet assigned or started
+  </Tab>
+  
+  <Tab title="En proceso (In Progress)">
+    **Color:** Blue (`bg-blue-600`)  
+    **Meaning:** Alert is actively being investigated or resolved
+  </Tab>
+  
+  <Tab title="Resuelto (Resolved)">
+    **Color:** Green (`bg-green-600`)  
+    **Meaning:** Alert has been fully addressed and closed
+  </Tab>
+</Tabs>
+
+## Table Row Display
+
+Each alert is rendered with alternating row colors and color-coded badges:
+
+```tsx PanelDeAlertas.tsx:300-323
+{alerts.map((alert, index) => (
+  <TableRow 
+    key={alert.id} 
+    className={`border-gray-700 ${
+      index % 2 === 0 ? "bg-[#131A2C]" : "bg-[#101725]"
+    }`}
+  >
+    <TableCell className="text-[#E5E7EB]">{alert.tipo}</TableCell>
+    <TableCell className="text-[#E5E7EB]">{alert.responsable}</TableCell>
+    <TableCell>
+      <Badge className={`${getPriorityColor(alert.prioridad)} rounded-full px-4 py-1.5 text-sm`}>
+        {alert.prioridad}
+      </Badge>
+    </TableCell>
+    <TableCell className="text-[#E5E7EB]">{alert.unidad}</TableCell>
+    <TableCell className="text-[#E5E7EB]">{alert.conductor}</TableCell>
+    <TableCell className="text-[#E5E7EB] text-sm">{formatDate(alert.generado)}</TableCell>
+    <TableCell>
+      <Badge className={`${getEstadoColor(alert.estado)} rounded-full px-4 py-1.5 text-sm`}>
+        {alert.estado}
+      </Badge>
+    </TableCell>
+  </TableRow>
+))}
+```
+
+## Refresh Functionality
+
+The panel includes a manual refresh button to reload alert data:
+
+```tsx PanelDeAlertas.tsx:254-262
+<Button 
+  variant="ghost" 
+  size="icon" 
+  className="text-[#E5E7EB] hover:bg-[#0E1525]"
+  onClick={fetchAlerts}
+  disabled={isLoading}
+>
+  <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
+</Button>
+```
+
+<Note>
+  The refresh button includes a loading spinner animation while data is being fetched. The button is disabled during loading to prevent multiple concurrent requests.
+</Note>
+
+## Loading States
+
+The table handles loading and empty states:
+
+```tsx PanelDeAlertas.tsx:284-298
+{isLoading ? (
+  <TableRow>
+    <TableCell colSpan={7} className="text-center text-[#E5E7EB] py-8">
+      <div className="flex items-center justify-center gap-2">
+        <RefreshCw className="h-5 w-5 animate-spin" />
+        <span>Cargando historial de alertas...</span>
+      </div>
+    </TableCell>
+  </TableRow>
+) : alerts.length === 0 ? (
+  <TableRow>
+    <TableCell colSpan={7} className="text-center text-[#E5E7EB] py-8">
+      No hay alertas en el historial
+    </TableCell>
+  </TableRow>
+) : (
+  // Alert rows...
+)}
+```
+
+## Search Functionality
+
+The panel includes a search input for text-based filtering:
+
+```tsx PanelDeAlertas.tsx:246-253
+<div className="relative">
+  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+  <Input
+    placeholder="Buscar"
+    className="pl-10 w-[200px] bg-[#0E1525] border-gray-700 text-[#E5E7EB]"
+  />
+</div>
+```
+
+## Error Handling
+
+The system displays error notifications if alert loading fails:
+
+```tsx PanelDeAlertas.tsx:86-93
+catch (error) {
+  console.error("Error fetching alerts:", error);
+  toast({
+    title: "Error",
+    description: "No se pudieron cargar las alertas del historial",
+    variant: "destructive",
+  });
+}
+```
+
+## GraphQL Integration
+
+All alert history data is retrieved via the `/panel/graphql` endpoint using the authenticated `useGraphQL` hook, which automatically includes JWT tokens and handles session expiration (see [Authentication](/features/authentication)).

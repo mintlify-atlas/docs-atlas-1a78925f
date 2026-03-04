@@ -1,0 +1,813 @@
+---
+title: 'Build & Deployment'
+description: 'Complete guide to building and deploying FleetGuard360 to production'
+---
+
+## Build Process Overview
+
+FleetGuard360 uses Vite as its build tool, providing lightning-fast builds with optimal output optimization.
+
+<CardGroup cols={2}>
+  <Card title="Development Build" icon="hammer">
+    Includes source maps and debugging tools
+    
+    **Command:** `npm run build:dev`
+  </Card>
+  
+  <Card title="Production Build" icon="rocket">
+    Fully optimized with minification
+    
+    **Command:** `npm run build`
+  </Card>
+</CardGroup>
+
+## Build Commands
+
+### Production Build
+
+Create an optimized production build:
+
+```bash
+npm run build
+```
+
+**What happens during the build:**
+
+<Steps>
+  <Step title="TypeScript Compilation">
+    TypeScript files are compiled to JavaScript using SWC (super-fast Rust-based compiler)
+  </Step>
+  
+  <Step title="Module Bundling">
+    Vite bundles all modules, analyzes dependencies, and creates optimized chunks
+  </Step>
+  
+  <Step title="Code Optimization">
+    - Minification (removes whitespace, shortens variable names)
+    - Tree shaking (removes unused code)
+    - Dead code elimination
+  </Step>
+  
+  <Step title="Asset Processing">
+    - CSS bundling and minification
+    - Image optimization
+    - Font subsetting
+  </Step>
+  
+  <Step title="Output Generation">
+    Optimized files are written to `dist/` directory
+  </Step>
+</Steps>
+
+**Build output:**
+
+```
+dist/
+├── index.html              # Entry HTML file
+├── assets/
+│   ├── index-[hash].js    # Main application bundle
+│   ├── index-[hash].css   # Compiled styles
+│   ├── vendor-[hash].js   # Third-party dependencies
+│   └── [asset]-[hash].*   # Images, fonts, etc.
+└── vite.svg               # Static assets
+```
+
+<Note>
+Filenames include content hashes (e.g., `index-a1b2c3d4.js`) for optimal cache busting. When files change, the hash changes, forcing browsers to fetch the new version.
+</Note>
+
+### Development Build
+
+Create a build with source maps for debugging:
+
+```bash
+npm run build:dev
+```
+
+**Differences from production:**
+- Source maps included (`.js.map` files)
+- Less aggressive minification
+- Faster build time
+- Larger bundle size
+- Easier debugging in production-like environment
+
+<Warning>
+Development builds are significantly larger. Only use for staging environments or debugging production issues.
+</Warning>
+
+## Vite Build Configuration
+
+The build process is configured in `vite.config.ts:1-39`:
+
+```typescript
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react-swc";
+import path from "path";
+import { componentTagger } from "lovable-tagger";
+
+export default defineConfig(({ mode }) => ({
+  // Development server configuration (dev mode only)
+  server: { /* ... */ },
+  
+  // Plugins
+  plugins: [
+    react(),                    // React with SWC compiler
+    mode === "development" &&   // Dev-only plugins
+      componentTagger()          // Component debugging tags
+  ].filter(Boolean),
+  
+  // Module resolution
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),  // Path alias
+    },
+  },
+  
+  // Global constants
+  define: {
+    global: "globalThis",       // Polyfill for libraries expecting 'global'
+  },
+}));
+```
+
+### Key Build Features
+
+<Tabs>
+  <Tab title="React Plugin">
+    **@vitejs/plugin-react-swc** provides:
+    
+    - Ultra-fast compilation using SWC (Rust-based)
+    - React Fast Refresh in development
+    - JSX transformation
+    - Automatic React import injection
+    
+    **Performance:** ~20x faster than Babel
+  </Tab>
+  
+  <Tab title="Path Aliases">
+    The `@/` alias maps to the `src/` directory:
+    
+    ```typescript
+    // Import becomes:
+    import { Button } from "@/components/ui/button";
+    
+    // Instead of:
+    import { Button } from "../../components/ui/button";
+    ```
+    
+    This is resolved at build time to actual paths.
+  </Tab>
+  
+  <Tab title="Global Polyfills">
+    The `define` option replaces `global` with `globalThis`:
+    
+    ```typescript
+    define: {
+      global: "globalThis"
+    }
+    ```
+    
+    Required for libraries (like SockJS) that expect a `global` object.
+  </Tab>
+</Tabs>
+
+## Environment Modes
+
+Vite supports different environment modes:
+
+<CodeGroup>
+```bash Development Mode
+# Default mode for npm run dev
+MODE=development npm run dev
+
+# Loads .env.development if present
+# Enables debugging features
+# Includes source maps
+```
+
+```bash Production Mode
+# Default mode for npm run build
+MODE=production npm run build
+
+# Loads .env.production if present
+# Optimizes for performance
+# Minifies all code
+```
+
+```bash Custom Mode
+# Build with custom mode
+vite build --mode staging
+
+# Loads .env.staging if present
+# Useful for staging environments
+```
+</CodeGroup>
+
+### Environment Files
+
+Create environment-specific files:
+
+```
+.env                  # Loaded in all cases
+.env.local            # Loaded in all cases, ignored by git
+.env.development      # Only loaded in development
+.env.production       # Only loaded in production
+.env.staging          # Only loaded when MODE=staging
+```
+
+**Example `.env.production`:**
+
+```bash
+VITE_API_URL=https://api.fleetguard360.com
+VITE_WS_URL=wss://api.fleetguard360.com/notifications
+VITE_APP_VERSION=1.0.0
+```
+
+<Warning>
+Never commit `.env.local` files. They may contain secrets. Add them to `.gitignore`.
+</Warning>
+
+## Vercel Deployment
+
+### Deployment Configuration
+
+The project is configured for Vercel deployment via `vercel.json`:
+
+```json
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://fleetguard-api.ddns.net/:path*"
+    },
+    {
+      "source": "/notifications/:path*",
+      "destination": "http://fleetguard-api.ddns.net/notifications/:path*"
+    }
+  ]
+}
+```
+
+**What this does:**
+
+<Steps>
+  <Step title="API Rewrites">
+    Requests to `/api/*` are proxied to the backend API:
+    
+    - Frontend: `https://fleetguard360.vercel.app/api/graphql`
+    - Proxied to: `http://fleetguard-api.ddns.net/graphql`
+  </Step>
+  
+  <Step title="WebSocket Rewrites">
+    WebSocket connections to `/notifications/*` are proxied:
+    
+    - Frontend: `wss://fleetguard360.vercel.app/notifications/ws-alerts`
+    - Proxied to: `ws://fleetguard-api.ddns.net/notifications/ws-alerts`
+  </Step>
+  
+  <Step title="CORS Handling">
+    Rewrites eliminate CORS issues by making all requests same-origin
+  </Step>
+</Steps>
+
+<Note>
+Vercel rewrites function similarly to the Vite development proxy but work in production. No code changes needed between environments.
+</Note>
+
+### Deploy to Vercel
+
+<Tabs>
+  <Tab title="Automatic (GitHub)">
+    **Recommended:** Connect your GitHub repository to Vercel for automatic deployments.
+    
+    <Steps>
+      <Step title="Connect Repository">
+        1. Go to [vercel.com](https://vercel.com)
+        2. Click "New Project"
+        3. Import your GitHub repository
+      </Step>
+      
+      <Step title="Configure Build">
+        Vercel auto-detects Vite configuration:
+        
+        - **Framework:** Vite
+        - **Build Command:** `npm run build`
+        - **Output Directory:** `dist`
+        - **Install Command:** `npm install`
+      </Step>
+      
+      <Step title="Deploy">
+        Click "Deploy" - done!
+        
+        Vercel will:
+        - Install dependencies
+        - Run build
+        - Deploy to CDN
+        - Provide preview URL
+      </Step>
+      
+      <Step title="Automatic Updates">
+        Every push to `main` triggers automatic deployment.
+        
+        Pull requests get preview deployments.
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Manual (CLI)">
+    Deploy using the Vercel CLI:
+    
+    <Steps>
+      <Step title="Install Vercel CLI">
+        ```bash
+        npm install -g vercel
+        ```
+      </Step>
+      
+      <Step title="Login">
+        ```bash
+        vercel login
+        ```
+      </Step>
+      
+      <Step title="Deploy">
+        ```bash
+        # Deploy to preview
+        vercel
+        
+        # Deploy to production
+        vercel --prod
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+### Environment Variables in Vercel
+
+Add environment variables in the Vercel dashboard:
+
+<Steps>
+  <Step title="Open Project Settings">
+    Go to your project → Settings → Environment Variables
+  </Step>
+  
+  <Step title="Add Variables">
+    Add each variable:
+    
+    - **Name:** `VITE_API_URL`
+    - **Value:** `https://api.fleetguard360.com`
+    - **Environments:** Production, Preview, Development
+  </Step>
+  
+  <Step title="Redeploy">
+    Trigger a new deployment to apply the changes
+  </Step>
+</Steps>
+
+<Note>
+Environment variables in Vercel are encrypted at rest and in transit. They're securely injected during the build process.
+</Note>
+
+## Build Output & Optimization
+
+### Bundle Analysis
+
+Analyze your bundle size to identify optimization opportunities:
+
+```bash
+# Install rollup-plugin-visualizer
+npm install --save-dev rollup-plugin-visualizer
+```
+
+**Add to `vite.config.ts`:**
+
+```typescript
+import { visualizer } from 'rollup-plugin-visualizer';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    visualizer({
+      filename: './dist/stats.html',
+      open: true,
+      gzipSize: true,
+      brotliSize: true,
+    }),
+  ],
+});
+```
+
+After building, open `dist/stats.html` to see an interactive bundle visualization.
+
+### Build Size Optimization
+
+<AccordionGroup>
+  <Accordion title="Code Splitting">
+    Split large routes into separate chunks:
+    
+    ```typescript
+    import { lazy, Suspense } from 'react';
+    
+    // Instead of:
+    import Dashboard from './pages/Dashboard';
+    
+    // Use lazy loading:
+    const Dashboard = lazy(() => import('./pages/Dashboard'));
+    
+    // Wrap in Suspense:
+    <Suspense fallback={<Loading />}>
+      <Dashboard />
+    </Suspense>
+    ```
+    
+    Benefits:
+    - Smaller initial bundle
+    - Faster time to interactive
+    - Only loads code when needed
+  </Accordion>
+  
+  <Accordion title="Tree Shaking">
+    Vite automatically removes unused code. Help it by:
+    
+    1. **Use named imports:**
+       ```typescript
+       // Good - tree-shakeable
+       import { Button } from '@/components/ui/button';
+       
+       // Bad - imports everything
+       import * as UI from '@/components/ui';
+       ```
+    
+    2. **Avoid side effects:**
+       - Don't execute code at import time
+       - Use `sideEffects: false` in package.json
+  </Accordion>
+  
+  <Accordion title="Dependency Optimization">
+    Reduce bundle size by optimizing dependencies:
+    
+    1. **Use lightweight alternatives:**
+       - `date-fns` instead of `moment` (already done ✓)
+       - Individual lodash functions: `import debounce from 'lodash/debounce'`
+    
+    2. **Analyze large dependencies:**
+       ```bash
+       npm list --depth=0
+       ```
+    
+    3. **Consider CDN for large libraries:**
+       ```html
+       <script src="https://cdn.jsdelivr.net/npm/[email protected]"></script>
+       ```
+  </Accordion>
+  
+  <Accordion title="Image Optimization">
+    Optimize images for web:
+    
+    1. **Use modern formats:** WebP, AVIF
+    2. **Responsive images:** Different sizes for different screens
+    3. **Lazy loading:** Load images as they enter viewport
+    
+    ```tsx
+    <img 
+      src="/images/hero.webp" 
+      loading="lazy" 
+      alt="Hero image"
+    />
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Asset Handling
+
+Vite processes assets differently based on size and type:
+
+<Tabs>
+  <Tab title="Small Assets (<4KB)">
+    **Inlined as base64 data URLs:**
+    
+    ```typescript
+    import logo from './logo.svg';
+    // logo is a data URL: "data:image/svg+xml;base64,..."
+    
+    <img src={logo} alt="Logo" />
+    ```
+    
+    Benefits:
+    - No additional HTTP requests
+    - Faster initial load for small assets
+  </Tab>
+  
+  <Tab title="Large Assets (≥4KB)">
+    **Copied to dist/ with content hash:**
+    
+    ```typescript
+    import banner from './banner.jpg';
+    // banner is a URL: "/assets/banner-a1b2c3d4.jpg"
+    
+    <img src={banner} alt="Banner" />
+    ```
+    
+    Benefits:
+    - Separate caching
+    - Parallel downloads
+    - Optimal cache busting
+  </Tab>
+  
+  <Tab title="Public Assets">
+    **Files in `public/` are copied as-is:**
+    
+    ```
+    public/
+    ├── favicon.ico      → /favicon.ico
+    ├── robots.txt       → /robots.txt
+    └── images/
+        └── logo.png     → /images/logo.png
+    ```
+    
+    Reference with absolute paths:
+    ```html
+    <img src="/images/logo.png" alt="Logo" />
+    ```
+  </Tab>
+</Tabs>
+
+## Performance Optimization
+
+### Production Checklist
+
+Before deploying to production:
+
+<Steps>
+  <Step title="Test Production Build Locally">
+    ```bash
+    npm run build
+    npm run preview
+    ```
+    
+    Open `http://localhost:4173` and test thoroughly.
+  </Step>
+  
+  <Step title="Check Bundle Size">
+    ```bash
+    npm run build
+    
+    # Check output:
+    # ✓ built in 3.42s
+    # dist/index.html                  0.45 kB │ gzip:  0.30 kB
+    # dist/assets/index-a1b2c3.css    95.23 kB │ gzip: 15.67 kB
+    # dist/assets/index-d4e5f6.js    654.32 kB │ gzip: 178.45 kB
+    ```
+    
+    Target: Main bundle under 250 KB gzipped.
+  </Step>
+  
+  <Step title="Verify Environment Variables">
+    Ensure all required variables are set in Vercel:
+    - API endpoints
+    - Feature flags
+    - Analytics IDs
+  </Step>
+  
+  <Step title="Test All Routes">
+    Navigate through all application routes:
+    - `/` - Login
+    - `/dashboard` - Dashboard
+    - `/panel-de-alertas` - Alerts
+    - `/estadisticas` - Statistics
+  </Step>
+  
+  <Step title="Check WebSocket Connection">
+    Verify real-time notifications work:
+    - Open browser dev tools
+    - Check Network tab for WebSocket connection
+    - Should see "101 Switching Protocols"
+  </Step>
+  
+  <Step title="Lighthouse Audit">
+    Run Lighthouse in Chrome DevTools:
+    - Performance: Target 90+
+    - Accessibility: Target 100
+    - Best Practices: Target 100
+    - SEO: Target 90+
+  </Step>
+</Steps>
+
+### Runtime Performance Tips
+
+<CardGroup cols={2}>
+  <Card title="Lazy Loading" icon="hourglass">
+    ```typescript
+    const HeavyComponent = lazy(() => 
+      import('./HeavyComponent')
+    );
+    ```
+  </Card>
+  
+  <Card title="Memoization" icon="memory">
+    ```typescript
+    const MemoizedChild = memo(({ data }) => (
+      <ExpensiveRender data={data} />
+    ));
+    ```
+  </Card>
+  
+  <Card title="Virtual Lists" icon="list">
+    Use react-window for long lists:
+    ```typescript
+    <FixedSizeList
+      height={600}
+      itemCount={1000}
+      itemSize={50}
+    />
+    ```
+  </Card>
+  
+  <Card title="Debouncing" icon="clock">
+    Debounce expensive operations:
+    ```typescript
+    const debouncedSearch = 
+      useMemo(() => 
+        debounce(search, 300),
+        []
+      );
+    ```
+  </Card>
+</CardGroup>
+
+## CI/CD Considerations
+
+### GitHub Actions Example
+
+Automate testing and building:
+
+```yaml .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Lint
+        run: npm run lint
+      
+      - name: Build
+        run: npm run build
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: dist/
+```
+
+### Pre-deployment Checks
+
+<AccordionGroup>
+  <Accordion title="Linting">
+    Ensure code quality:
+    
+    ```bash
+    npm run lint
+    ```
+    
+    Fix issues automatically:
+    ```bash
+    npm run lint -- --fix
+    ```
+  </Accordion>
+  
+  <Accordion title="Type Checking">
+    Verify TypeScript types:
+    
+    ```bash
+    npx tsc --noEmit
+    ```
+    
+    Add to package.json:
+    ```json
+    "scripts": {
+      "type-check": "tsc --noEmit"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Build Verification">
+    Ensure build succeeds:
+    
+    ```bash
+    npm run build
+    ```
+    
+    Check for warnings:
+    - Large chunks (>500 KB)
+    - Circular dependencies
+    - Missing dependencies
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting Builds
+
+<AccordionGroup>
+  <Accordion title="Build fails with memory error">
+    Increase Node.js memory limit:
+    
+    ```json package.json
+    "scripts": {
+      "build": "node --max-old-space-size=4096 node_modules/vite/bin/vite.js build"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Module not found errors">
+    Common causes:
+    
+    1. **Case sensitivity:** 
+       - Development (macOS/Windows): Case-insensitive
+       - Production (Linux): Case-sensitive
+       
+       Ensure imports match exact filename:
+       ```typescript
+       // File: Button.tsx
+       import { Button } from './Button';  // ✓
+       import { Button } from './button';  // ✗ (may fail in prod)
+       ```
+    
+    2. **Missing dependencies:**
+       ```bash
+       npm install
+       ```
+    
+    3. **Path alias issues:**
+       - Verify `tsconfig.json` has correct paths
+       - Check `vite.config.ts` alias configuration
+  </Accordion>
+  
+  <Accordion title="Blank page after deployment">
+    Debug steps:
+    
+    1. **Check browser console** for errors
+    2. **Verify base URL** in `vite.config.ts`:
+       ```typescript
+       export default defineConfig({
+         base: '/',  // Or '/subdirectory/' if not at root
+       });
+       ```
+    
+    3. **Check Vercel logs** in dashboard
+    4. **Test locally:**
+       ```bash
+       npm run build && npm run preview
+       ```
+  </Accordion>
+  
+  <Accordion title="API requests fail in production">
+    Verify:
+    
+    1. **Vercel rewrites** are configured correctly
+    2. **Backend is accessible** from Vercel servers
+    3. **CORS headers** are set on backend
+    4. **Environment variables** are set in Vercel
+    
+    Check Network tab for actual request URLs.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="/development/architecture">
+    Understand the application architecture
+  </Card>
+  
+  <Card title="Development Setup" icon="wrench" href="/development/setup">
+    Set up your local development environment
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Learn about the GraphQL API
+  </Card>
+  
+  <Card title="Statistics" icon="chart-line" href="/features/statistics">
+    Monitor your deployed application with analytics
+  </Card>
+</CardGroup>

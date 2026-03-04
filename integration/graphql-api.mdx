@@ -1,0 +1,522 @@
+---
+title: 'GraphQL API'
+description: 'Learn how to interact with the FleetGuard360 GraphQL API for querying and mutating alert data'
+icon: 'code'
+---
+
+## Overview
+
+FleetGuard360 uses a GraphQL API for all data operations. The API provides type-safe queries and mutations for managing alerts, priorities, and related entities.
+
+## API Configuration
+
+### Endpoint Setup
+
+The GraphQL API is configured with a relative endpoint that works with the Vite proxy:
+
+```typescript
+const API_URL = "/api";
+```
+
+### Proxy Configuration
+
+In development, requests are proxied to the backend server. From `vite.config.ts`:
+
+```typescript
+proxy: {
+  "/api": {
+    target: "http://fleetguard-api.ddns.net",
+    changeOrigin: true,
+    rewrite: (path) => path.replace(/^/api/, ""),
+    configure: (proxy, _options) => {
+      proxy.on("proxyReq", (proxyReq, _req, _res) => {
+        proxyReq.setHeader("Origin", "http://fleetguard-api.ddns.net");
+      });
+    },
+  },
+}
+```
+
+<Note>
+  The `/api` prefix is stripped when forwarding to the backend server.
+</Note>
+
+## Authentication
+
+### JWT Bearer Tokens
+
+All GraphQL requests require authentication using JWT Bearer tokens:
+
+```typescript
+const token = localStorage.getItem("jwt_token") || sessionStorage.getItem("jwt_token");
+
+const response = await fetch(`${API_URL}${endpoint}`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({ query, variables }),
+});
+```
+
+### Session Expiration Handling
+
+The API automatically handles expired sessions:
+
+```typescript
+if (response.status === 401 || response.status === 403) {
+  localStorage.removeItem("jwt_token");
+  sessionStorage.removeItem("jwt_token");
+  navigate("/", { state: { sessionExpired: true } });
+  throw new Error("Session expired");
+}
+```
+
+<Warning>
+  When a 401 or 403 status is received, tokens are cleared and the user is redirected to the login page.
+</Warning>
+
+## Request/Response Format
+
+### GraphQL Response Interface
+
+```typescript
+interface GraphQLResponse<T> {
+  data?: T;
+  errors?: Array<{ message: string }>;
+}
+```
+
+### Making Requests
+
+The `useGraphQL` hook provides a type-safe wrapper:
+
+```typescript
+const { fetchGraphQL } = useGraphQL();
+
+const result = await fetchGraphQL<ResponseType>(
+  "/alerts/graphql",
+  query,
+  variables // optional
+);
+```
+
+## API Endpoints
+
+FleetGuard360 uses multiple GraphQL endpoints for different domains:
+
+- `/api/alerts/graphql` - Alert type configuration
+- `/api/panel/graphql` - Alert instances and history
+
+## Query Examples
+
+### Fetch All Priority Levels
+
+From `Dashboard.tsx:59-66`:
+
+```graphql
+query GetAllNivelesPrioridad {
+  nivelesPrioridad {
+    id
+    nombre
+  }
+}
+```
+
+<CodeGroup>
+```typescript TypeScript
+interface PriorityLevel {
+  id: number;
+  nombre: string;
+}
+
+const result = await fetchGraphQL<{ nivelesPrioridad: PriorityLevel[] }>(
+  "/alerts/graphql",
+  query
+);
+
+setPriorities(result.nivelesPrioridad);
+```
+
+```json Response
+{
+  "data": {
+    "nivelesPrioridad": [
+      { "id": 1, "nombre": "Baja" },
+      { "id": 2, "nombre": "Media" },
+      { "id": 3, "nombre": "Alta" }
+    ]
+  }
+}
+```
+</CodeGroup>
+
+### Fetch All Alert Types
+
+From `Dashboard.tsx:81-94`:
+
+```graphql
+query GetAllTipoAlertas {
+  tipoAlertas {
+    id
+    nombre
+    descripcion
+    nivelPrioridad {
+      id
+      nombre
+    }
+    tipoEncargado
+  }
+}
+```
+
+<CodeGroup>
+```typescript TypeScript
+interface TipoAlertaResponse {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  nivelPrioridad: {
+    id: number;
+    nombre: string;
+  };
+  tipoEncargado: string;
+}
+
+const result = await fetchGraphQL<{ tipoAlertas: TipoAlertaResponse[] }>(
+  "/alerts/graphql",
+  query
+);
+```
+
+```json Response
+{
+  "data": {
+    "tipoAlertas": [
+      {
+        "id": 1,
+        "nombre": "Exceso de velocidad",
+        "descripcion": "Velocidad superior al límite permitido",
+        "nivelPrioridad": {
+          "id": 3,
+          "nombre": "Alta"
+        },
+        "tipoEncargado": "MECANICO"
+      }
+    ]
+  }
+}
+```
+</CodeGroup>
+
+### Fetch All Alerts (History)
+
+From `PanelDeAlertas.tsx:50-62`:
+
+```graphql
+query GetAllAlerts {
+  getAllAlerts {
+    id
+    alertType
+    responsible
+    priority
+    driver
+    generatingUnit
+    state
+    generationDate
+  }
+}
+```
+
+<CodeGroup>
+```typescript TypeScript
+interface AlertResponse {
+  id: string;
+  alertType: string;
+  responsible: string;
+  priority: string;
+  driver: string;
+  generatingUnit: string;
+  state: string;
+  generationDate: string;
+}
+
+const result = await fetchGraphQL<{ getAllAlerts: AlertResponse[] }>(
+  "/panel/graphql",
+  query
+);
+```
+
+```json Response
+{
+  "data": {
+    "getAllAlerts": [
+      {
+        "id": "123",
+        "alertType": "Exceso de velocidad",
+        "responsible": "Área de monitoreo",
+        "priority": "Alta",
+        "driver": "Carlos Sanchez",
+        "generatingUnit": "Camión-123",
+        "state": "En proceso",
+        "generationDate": "2026-03-04T10:30:00Z"
+      }
+    ]
+  }
+}
+```
+</CodeGroup>
+
+### Export Alerts CSV URL
+
+From `Estadisticas.tsx:22-26`:
+
+```graphql
+query {
+  exportAlertsCsvUrl
+}
+```
+
+<CodeGroup>
+```typescript TypeScript
+const result = await fetchGraphQL<{ exportAlertsCsvUrl: string }>(
+  "/panel/graphql",
+  query
+);
+
+const downloadUrl = result.exportAlertsCsvUrl;
+```
+
+```json Response
+{
+  "data": {
+    "exportAlertsCsvUrl": "http://fleetguard-api.ddns.net/exports/alertas_2026-03-04.csv"
+  }
+}
+```
+</CodeGroup>
+
+## Mutation Examples
+
+### Create Alert Type
+
+From `Dashboard.tsx:177-190`:
+
+```graphql
+mutation CreateTipoAlerta($input: TipoAlertaCreateInput!) {
+  createTipoAlerta(input: $input) {
+    id
+    nombre
+    descripcion
+    nivelPrioridad {
+      id
+      nombre
+    }
+    tipoEncargado
+  }
+}
+```
+
+<CodeGroup>
+```typescript TypeScript
+const variables = {
+  input: {
+    nombre: "Frenado brusco",
+    descripcion: "Desaceleración repentina detectada",
+    nivelPrioridadId: 2,
+    tipoEncargado: "MECANICO",
+  },
+};
+
+const result = await fetchGraphQL<{ createTipoAlerta: TipoAlertaResponse }>(
+  "/alerts/graphql",
+  mutation,
+  variables
+);
+```
+
+```json Response
+{
+  "data": {
+    "createTipoAlerta": {
+      "id": 10,
+      "nombre": "Frenado brusco",
+      "descripcion": "Desaceleración repentina detectada",
+      "nivelPrioridad": {
+        "id": 2,
+        "nombre": "Media"
+      },
+      "tipoEncargado": "MECANICO"
+    }
+  }
+}
+```
+</CodeGroup>
+
+### Update Alert Type
+
+From `Dashboard.tsx:153-165`:
+
+```graphql
+mutation UpdateTipoAlerta($id: Int!, $input: TipoAlertaUpdateInput!) {
+  updateTipoAlerta(id: $id, input: $input) {
+    id
+    nombre
+    descripcion
+    nivelPrioridad {
+      id
+      nombre
+    }
+    tipoEncargado
+  }
+}
+```
+
+<CodeGroup>
+```typescript TypeScript
+const variables = {
+  id: 10,
+  input: {
+    nombre: "Frenado brusco",
+    descripcion: "Desaceleración repentina detectada - Actualizado",
+    nivelPrioridadId: 3,
+    tipoEncargado: "SEGURIDAD",
+  },
+};
+
+const result = await fetchGraphQL<{ updateTipoAlerta: TipoAlertaResponse }>(
+  "/alerts/graphql",
+  mutation,
+  variables
+);
+```
+</CodeGroup>
+
+### Delete Alert Type
+
+From `Dashboard.tsx:263-267`:
+
+```graphql
+mutation DeleteTipoAlerta($id: Int!) {
+  deleteTipoAlerta(id: $id)
+}
+```
+
+<CodeGroup>
+```typescript TypeScript
+const result = await fetchGraphQL<{ deleteTipoAlerta: boolean }>(
+  "/alerts/graphql",
+  mutation,
+  { id: 10 }
+);
+
+if (result.deleteTipoAlerta) {
+  console.log("Alert type deleted successfully");
+}
+```
+
+```json Response
+{
+  "data": {
+    "deleteTipoAlerta": true
+  }
+}
+```
+</CodeGroup>
+
+## Error Handling
+
+The GraphQL client includes comprehensive error handling:
+
+```typescript
+const result: GraphQLResponse<T> = await response.json();
+
+if (result.errors) {
+  throw new Error(result.errors[0]?.message || "GraphQL error");
+}
+
+if (!result.data) {
+  throw new Error("No data returned from GraphQL");
+}
+
+return result.data;
+```
+
+### Common Error Scenarios
+
+<ParamField path="401/403" type="error">
+  **Session Expired** - Token is invalid or expired. User is redirected to login.
+</ParamField>
+
+<ParamField path="GraphQL Errors" type="error">
+  **Validation/Business Logic Errors** - Returned in the `errors` array with descriptive messages.
+</ParamField>
+
+<ParamField path="No Data" type="error">
+  **Empty Response** - Query succeeded but returned no data.
+</ParamField>
+
+## TypeScript Types
+
+### Input Types
+
+```typescript
+interface TipoAlertaCreateInput {
+  nombre: string;
+  descripcion: string;
+  nivelPrioridadId: number;
+  tipoEncargado: string;
+}
+
+interface TipoAlertaUpdateInput {
+  nombre: string;
+  descripcion: string;
+  nivelPrioridadId: number;
+  tipoEncargado: string;
+}
+```
+
+### Response Types
+
+```typescript
+interface TipoAlertaResponse {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  nivelPrioridad: {
+    id: number;
+    nombre: string;
+  };
+  tipoEncargado: string;
+}
+
+interface AlertResponse {
+  id: string;
+  alertType: string;
+  responsible: string;
+  priority: string;
+  driver: string;
+  generatingUnit: string;
+  state: string;
+  generationDate: string;
+}
+```
+
+## Best Practices
+
+<Note>
+  **Type Safety** - Always provide TypeScript types when calling `fetchGraphQL` for compile-time type checking.
+</Note>
+
+<Note>
+  **Token Storage** - Tokens are stored in both `localStorage` (persistent) and `sessionStorage` (session-only) for flexibility.
+</Note>
+
+<Warning>
+  **Error Handling** - Always wrap GraphQL calls in try-catch blocks to handle network and API errors gracefully.
+</Warning>
+
+<Note>
+  **Auto-redirect** - The hook automatically redirects to login on authentication errors - no manual handling needed.
+</Note>

@@ -1,80 +1,343 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart Guide
+description: Get FleetGuard360 up and running in under 5 minutes
 ---
 
-## Get started in three steps
+## Quick Start
 
-Get your documentation site running locally and make your first customization.
+This guide will help you clone, configure, and run FleetGuard360 on your local machine. By the end, you'll have the application running and be able to log in to the dashboard.
 
-### Step 1: Set up your local environment
+<Steps>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+### Clone the Repository
 
-### Step 2: Deploy your changes
+First, clone the FleetGuard360 frontend repository from GitHub:
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+```bash
+git clone https://github.com/CodeFactory-FleetGuard360-EV04/Frontend.git
+```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+Navigate to the project directory:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+```bash
+cd Frontend
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Make sure you have Git installed on your system. You can verify by running `git --version`.
+</Note>
+
+### Install Dependencies
+
+FleetGuard360 requires Node.js and npm (or alternative package managers) to be installed. Install all project dependencies:
+
+<CodeGroup>
+```bash npm
+npm install
+```
+
+```bash yarn
+yarn install
+```
+
+```bash pnpm
+pnpm install
+```
+
+```bash bun
+bun install
+```
+</CodeGroup>
+
+<Warning>
+  Ensure you're using Node.js version 16 or higher. Check your version with `node --version`.
+</Warning>
+
+The installation will fetch all required dependencies including:
+
+- React 18.3.1 and React DOM
+- React Router v6.30.1 for navigation
+- TanStack Query for data fetching
+- shadcn/ui and Radix UI components
+- SockJS and STOMP for WebSocket connections
+- Recharts for data visualization
+- TypeScript and Vite
+
+### Start the Development Server
+
+Start the Vite development server with hot module replacement:
+
+<CodeGroup>
+```bash npm
+npm run dev
+```
+
+```bash yarn
+yarn dev
+```
+
+```bash pnpm
+pnpm dev
+```
+
+```bash bun
+bun run dev
+```
+</CodeGroup>
+
+The development server will start on **port 3000**:
+
+```bash
+  VITE v5.4.19  ready in 1247 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: http://[::]:3000/
+```
+
+<Note>
+  The server is configured to listen on all network interfaces (`::`) so you can access it from other devices on your network.
+</Note>
+
+### Open the Application
+
+Open your web browser and navigate to:
+
+```
+http://localhost:3000
+```
+
+You should see the **FleetGuard360 login page** with a two-column layout:
+
+- **Left column**: Branded welcome screen with the FleetGuard360 logo
+- **Right column**: Login form for operator credentials
+
+</Steps>
+
+## First Login Workflow
+
+Now that the application is running, let's walk through your first login.
+
+<Steps>
+
+### Enter Your Credentials
+
+The login page accepts operator credentials:
+
+1. **Email Address**: Enter your registered operator email
+2. **Password**: Enter your password
+3. **Remember Me** (optional): Check this to store your JWT token in `localStorage` instead of `sessionStorage`
+
+<CodeGroup>
+```typescript Login.tsx
+const handleSubmit = async (e: React.FormEvent) => {
+  const response = await fetch(`${API_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: credentials.email,
+      password: credentials.password,
+    }),
+  });
+
+  const data = await response.json();
+  
+  if (data?.jwt) {
+    // Store JWT token
+    if (credentials.remember) {
+      localStorage.setItem("jwt_token", data.jwt);
+    } else {
+      sessionStorage.setItem("jwt_token", data.jwt);
+    }
+    
+    navigate("/dashboard");
+  }
+};
+```
+</CodeGroup>
+
+<Note>
+  The authentication endpoint is `/api/auth/login`, which is proxied to `http://fleetguard-api.ddns.net` in development mode.
+</Note>
+
+### Successful Authentication
+
+When authentication succeeds:
+
+1. A JWT token is stored in browser storage
+2. A success toast notification appears: `"Login exitoso - Bienvenido {email}"`
+3. You're automatically redirected to `/dashboard`
+
+<Warning>
+  If authentication fails, you'll see an error toast: `"Error de autenticación - Credenciales inválidas"`. Verify your credentials and try again.
+</Warning>
+
+### Explore the Dashboard
+
+After login, you'll land on the **Dashboard** page at `/dashboard`. This is the alert configuration interface where you can:
+
+- View all configured alert types in a table
+- Create new alert types with the "ADD ITEM" button
+- Edit existing alerts by clicking the edit icon
+- Delete alerts by clicking the trash icon
+- Configure priority levels (High, Medium, Low)
+- Assign responsible areas (Mechanic, Security, Logistics, Technical Support)
+
+<CodeGroup>
+```typescript Dashboard.tsx
+const fetchAlerts = async () => {
+  const query = `
+    query GetAllTipoAlertas {
+      tipoAlertas {
+        id
+        nombre
+        descripcion
+        nivelPrioridad { id, nombre }
+        tipoEncargado
+      }
+    }
+  `;
+  
+  const result = await fetchGraphQL("/alerts/graphql", query);
+  setAlerts(result.tipoAlertas);
+};
+```
+</CodeGroup>
+
+</Steps>
+
+## View Alerts and Notifications
+
+Once you're logged in, you can explore the alert management features:
+
+<CardGroup cols={2}>
+  <Card title="Alert History" icon="clock-rotate-left" href="/features/alert-history">
+    Navigate to `/panel-de-alertas` to view the complete alert history with filtering options
+  </Card>
+  
+  <Card title="Live Notifications" icon="bell">
+    WebSocket notifications automatically appear when new alerts are generated
+  </Card>
+</CardGroup>
+
+### Alert History Panel
+
+Navigate to **Panel de Alertas** to view historical alerts:
+
+```
+http://localhost:3000/panel-de-alertas
+```
+
+Features include:
+
+- **Filter by**: Type, Responsible, Priority, Unit, Driver, State
+- **Search**: Quick text search across all alert fields
+- **Refresh**: Manual refresh button to reload alert data
+- **Visual Priority Indicators**: Color-coded badges (Red = High, Yellow = Medium, Green = Low)
+- **State Tracking**: Alert states (Pending, In Progress, Resolved)
+
+<CodeGroup>
+```typescript PanelDeAlertas.tsx
+const fetchAlerts = async () => {
+  const query = `
+    query GetAllAlerts {
+      getAllAlerts {
+        id
+        alertType
+        responsible
+        priority
+        driver
+        generatingUnit
+        state
+        generationDate
+      }
+    }
+  `;
+  
+  const result = await fetchGraphQL("/panel/graphql", query);
+};
+```
+</CodeGroup>
+
+### Real-Time Notifications
+
+FleetGuard360 automatically connects to the WebSocket server when you log in. The connection is established using:
+
+- **Protocol**: SockJS + STOMP
+- **Endpoint**: `/notifications/ws-alerts`
+- **Channel**: `/all/alerts`
+
+Notifications appear instantly without requiring page refreshes.
+
+<Note>
+  The WebSocket connection automatically reconnects if it's interrupted, with a 5-second retry interval.
+</Note>
+
+## Next Steps
+
+Now that you have FleetGuard360 running, explore these topics:
+
+<CardGroup cols={2}>
+  <Card title="Installation Guide" icon="gear" href="/installation">
+    Learn about environment configuration, build modes, and deployment
+  </Card>
+  
+  <Card title="Authentication" icon="shield" href="/features/authentication">
+    Understand JWT authentication, token storage, and session management
+  </Card>
+  
+  <Card title="Alert Management" icon="triangle-exclamation" href="/features/alert-management">
+    Deep dive into creating, editing, and managing alert configurations
+  </Card>
+  
+  <Card title="WebSocket Integration" icon="plug" href="/integration/websocket">
+    Implement real-time notifications in your custom components
+  </Card>
+</CardGroup>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Port 3000 already in use">
+    If port 3000 is occupied, Vite will automatically try the next available port (3001, 3002, etc.). Check the terminal output for the actual port.
+    
+    You can also specify a custom port in `vite.config.ts`:
+    
+    ```typescript
+    export default defineConfig({
+      server: {
+        port: 3001,
+      },
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="API proxy connection refused">
+    The development server proxies API requests to `http://fleetguard-api.ddns.net`. If you see connection errors:
+    
+    - Verify the backend server is running
+    - Check network connectivity
+    - Ensure no firewall is blocking the connection
+    - Confirm the backend URL in `vite.config.ts:13`
+  </Accordion>
+  
+  <Accordion title="WebSocket connection failed">
+    WebSocket connections require the `/notifications` proxy to be working. Check:
+    
+    - Backend WebSocket endpoint is accessible
+    - Proxy configuration in `vite.config.ts:22-27`
+    - Browser console for detailed error messages
+  </Accordion>
+  
+  <Accordion title="Module not found errors">
+    If you see import errors after cloning:
+    
+    1. Delete `node_modules` folder
+    2. Delete package lock files (`package-lock.json`, `yarn.lock`, etc.)
+    3. Run `npm install` again
+    4. Clear Vite cache: `rm -rf node_modules/.vite`
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  For more help, see the [Installation Guide](/installation) for setup issues or the [Development Setup](/development/setup) for configuration questions.
 </Note>

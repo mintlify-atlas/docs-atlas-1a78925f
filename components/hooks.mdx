@@ -1,0 +1,636 @@
+---
+title: 'Custom Hooks'
+description: 'React hooks for API integration, WebSocket connections, and UI state management'
+icon: 'repeat'
+---
+
+## Overview
+
+FleetGuard360 provides custom React hooks for common functionality including GraphQL API calls, real-time WebSocket notifications, and toast notifications.
+
+All hooks are located in `src/hooks/` and can be imported using the `@/hooks` alias.
+
+## Available Hooks
+
+<CardGroup cols={3}>
+  <Card title="useGraphQL" icon="webhook">
+    GraphQL API calls with authentication
+  </Card>
+  <Card title="useWebSocketNotifications" icon="bell">
+    Real-time WebSocket subscriptions
+  </Card>
+  <Card title="useToast" icon="message-circle">
+    Toast notification system
+  </Card>
+</CardGroup>
+
+---
+
+## useGraphQL
+
+The `useGraphQL` hook handles GraphQL API requests with automatic JWT authentication and session management.
+
+### Hook Implementation
+
+```tsx src/hooks/use-graphql.ts
+import { useNavigate } from "react-router-dom";
+
+const API_URL = "/api";
+
+interface GraphQLResponse<T> {
+  data?: T;
+  errors?: Array<{ message: string }>;
+}
+
+export const useGraphQL = () => {
+  const navigate = useNavigate();
+
+  const fetchGraphQL = async <T>(
+    endpoint: string,
+    query: string,
+    variables?: Record<string, unknown>
+  ): Promise<T> => {
+    const token = localStorage.getItem("jwt_token") || sessionStorage.getItem("jwt_token");
+    
+    if (!token) {
+      navigate("/");
+      throw new Error("No authentication token found");
+    }
+
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      localStorage.removeItem("jwt_token");
+      sessionStorage.removeItem("jwt_token");
+      navigate("/", { state: { sessionExpired: true } });
+      throw new Error("Session expired");
+    }
+
+    const result: GraphQLResponse<T> = await response.json();
+
+    if (result.errors) {
+      throw new Error(result.errors[0]?.message || "GraphQL error");
+    }
+
+    if (!result.data) {
+      throw new Error("No data returned from GraphQL");
+    }
+
+    return result.data;
+  };
+
+  return { fetchGraphQL };
+};
+```
+
+### Key Features
+
+<AccordionGroup>
+  <Accordion title="Automatic Authentication">
+    Automatically retrieves JWT tokens from `localStorage` or `sessionStorage` and includes them in the `Authorization` header.
+  </Accordion>
+  
+  <Accordion title="Session Management">
+    Detects 401/403 responses, clears expired tokens, and redirects to login with a session expiration notice.
+  </Accordion>
+  
+  <Accordion title="Error Handling">
+    Parses GraphQL errors and throws descriptive error messages for upstream handling.
+  </Accordion>
+  
+  <Accordion title="Type Safety">
+    Generic type parameter `<T>` provides full TypeScript typing for response data.
+  </Accordion>
+</AccordionGroup>
+
+### Usage Examples
+
+<CodeGroup>
+```tsx Fetching Alerts
+import { useGraphQL } from "@/hooks/use-graphql";
+import { useEffect, useState } from "react";
+
+interface Alert {
+  id: string;
+  name: string;
+  description: string;
+  priority: string;
+  area: string;
+}
+
+const Dashboard = () => {
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const { fetchGraphQL } = useGraphQL();
+
+  useEffect(() => {
+    const fetchAlerts = async () => {
+      try {
+        const query = `
+          query GetAllTipoAlertas {
+            tipoAlertas {
+              id
+              nombre
+              descripcion
+              nivelPrioridad { nombre }
+              tipoEncargado
+            }
+          }
+        `;
+
+        const result = await fetchGraphQL<{ tipoAlertas: any[] }>(
+          "/alerts/graphql",
+          query
+        );
+
+        setAlerts(result.tipoAlertas);
+      } catch (error) {
+        console.error("Error fetching alerts:", error);
+      }
+    };
+
+    fetchAlerts();
+  }, []);
+
+  return <div>{/* Render alerts */}</div>;
+};
+```
+
+```tsx Creating an Alert
+const handleCreateAlert = async () => {
+  try {
+    const mutation = `
+      mutation CreateTipoAlerta($input: TipoAlertaCreateInput!) {
+        createTipoAlerta(input: $input) {
+          id
+          nombre
+          descripcion
+        }
+      }
+    `;
+
+    const variables = {
+      input: {
+        nombre: "Nueva Alerta",
+        descripcion: "Descripción de la alerta",
+        nivelPrioridadId: 2,
+        tipoEncargado: "MECANICO",
+      },
+    };
+
+    const result = await fetchGraphQL(
+      "/alerts/graphql",
+      mutation,
+      variables
+    );
+
+    console.log("Alert created:", result);
+  } catch (error) {
+    console.error("Error creating alert:", error);
+  }
+};
+```
+
+```tsx Updating an Alert
+const handleUpdateAlert = async (alertId: number) => {
+  try {
+    const mutation = `
+      mutation UpdateTipoAlerta($id: Int!, $input: TipoAlertaUpdateInput!) {
+        updateTipoAlerta(id: $id, input: $input) {
+          id
+          nombre
+          descripcion
+        }
+      }
+    `;
+
+    const result = await fetchGraphQL(
+      "/alerts/graphql",
+      mutation,
+      {
+        id: alertId,
+        input: {
+          nombre: "Updated Name",
+          descripcion: "Updated description",
+        },
+      }
+    );
+
+    console.log("Alert updated:", result);
+  } catch (error) {
+    console.error("Error updating alert:", error);
+  }
+};
+```
+</CodeGroup>
+
+### Return Type
+
+```tsx
+interface UseGraphQLReturn {
+  fetchGraphQL: <T>(
+    endpoint: string,
+    query: string,
+    variables?: Record<string, unknown>
+  ) => Promise<T>;
+}
+```
+
+---
+
+## useWebSocketNotifications
+
+The `useWebSocketNotifications` hook manages WebSocket connections for real-time alert notifications using STOMP over SockJS.
+
+### Hook Implementation
+
+```tsx src/hooks/use-websocket-notifications.ts
+import { useEffect, useRef, useState } from "react";
+import SockJS from "sockjs-client";
+import Stomp from "stompjs";
+
+export interface AlertNotification {
+  id?: string;
+  alertType: string;
+  responsible?: string;
+  priority?: string;
+  driver?: string;
+  generatingUnit: string;
+  state?: string;
+  statusAlert?: string;
+  generationDate: string;
+  message?: string;
+}
+
+interface UseWebSocketNotificationsProps {
+  onNotification?: (notification: AlertNotification) => void;
+  autoConnect?: boolean;
+}
+
+export const useWebSocketNotifications = ({
+  onNotification,
+  autoConnect = true,
+}: UseWebSocketNotificationsProps = {}) => {
+  const [isConnected, setIsConnected] = useState(false);
+  const [notifications, setNotifications] = useState<AlertNotification[]>([]);
+  const stompClientRef = useRef<any>(null);
+
+  const connect = () => {
+    try {
+      const socket = new SockJS("/notifications/ws-alerts");
+      const stompClient = Stomp.over(socket);
+
+      stompClient.debug = () => {}; // Disable debug logs
+
+      stompClient.connect(
+        {},
+        (frame: any) => {
+          console.log("WebSocket connected:", frame);
+          setIsConnected(true);
+
+          // Subscribe to alerts channel
+          stompClient.subscribe("/all/alerts", (message) => {
+            try {
+              const alert: AlertNotification = JSON.parse(message.body);
+              setNotifications((prev) => [alert, ...prev]);
+
+              if (onNotification) {
+                onNotification(alert);
+              }
+            } catch (error) {
+              console.error("Error processing notification:", error);
+            }
+          });
+        },
+        (error: unknown) => {
+          console.error("WebSocket error:", error);
+          setIsConnected(false);
+
+          // Reconnect after 5 seconds
+          setTimeout(() => {
+            console.log("Attempting to reconnect...");
+            connect();
+          }, 5000);
+        }
+      );
+
+      stompClientRef.current = stompClient;
+    } catch (error) {
+      console.error("Error connecting WebSocket:", error);
+      setIsConnected(false);
+    }
+  };
+
+  const disconnect = () => {
+    if (stompClientRef.current?.connected) {
+      stompClientRef.current.disconnect(() => {
+        console.log("WebSocket disconnected");
+        setIsConnected(false);
+      });
+    }
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+  };
+
+  useEffect(() => {
+    if (autoConnect) {
+      connect();
+    }
+
+    return () => {
+      disconnect();
+    };
+  }, []);
+
+  return {
+    isConnected,
+    notifications,
+    connect,
+    disconnect,
+    clearNotifications,
+  };
+};
+```
+
+### Key Features
+
+<AccordionGroup>
+  <Accordion title="Auto-Reconnection">
+    Automatically attempts to reconnect after connection failures with a 5-second delay.
+  </Accordion>
+  
+  <Accordion title="Connection Status">
+    Provides `isConnected` boolean to track WebSocket connection state.
+  </Accordion>
+  
+  <Accordion title="Notification Callback">
+    Supports optional `onNotification` callback for handling new alerts in real-time.
+  </Accordion>
+  
+  <Accordion title="Notification Management">
+    Maintains notification history and provides `clearNotifications()` method.
+  </Accordion>
+</AccordionGroup>
+
+### Usage Example
+
+```tsx src/components/NotificationBell.tsx
+import { useState } from "react";
+import { useWebSocketNotifications } from "@/hooks/use-websocket-notifications";
+import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Bell } from "lucide-react";
+
+export const NotificationBell = () => {
+  const { toast } = useToast();
+  const [isOpen, setIsOpen] = useState(false);
+
+  const { notifications, isConnected, clearNotifications } = 
+    useWebSocketNotifications({
+      onNotification: (notification) => {
+        // Show toast when new alert arrives
+        toast({
+          title: "Nueva Alerta",
+          description: `${notification.alertType} - ${notification.generatingUnit}`,
+          variant: notification.priority?.toLowerCase().includes("alta") 
+            ? "destructive" 
+            : "default",
+        });
+      },
+    });
+
+  const unreadCount = notifications.length;
+
+  return (
+    <div>
+      <Button variant="ghost" size="icon" className="relative">
+        <Bell className="h-5 w-5" />
+        {unreadCount > 0 && (
+          <Badge className="absolute -top-1 -right-1">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </Badge>
+        )}
+        {/* Connection indicator */}
+        <span className={`absolute bottom-0 right-0 h-2 w-2 rounded-full ${
+          isConnected ? 'bg-green-500' : 'bg-red-500'
+        }`} />
+      </Button>
+      {/* Notification list */}
+    </div>
+  );
+};
+```
+
+### Return Type
+
+```tsx
+interface UseWebSocketNotificationsReturn {
+  isConnected: boolean;
+  notifications: AlertNotification[];
+  connect: () => void;
+  disconnect: () => void;
+  clearNotifications: () => void;
+}
+```
+
+---
+
+## useToast
+
+The `useToast` hook provides a toast notification system for user feedback.
+
+### Hook Implementation
+
+```tsx src/hooks/use-toast.ts
+import * as React from "react";
+import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
+
+const TOAST_LIMIT = 1;
+const TOAST_REMOVE_DELAY = 1000000;
+
+type ToasterToast = ToastProps & {
+  id: string;
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  action?: ToastActionElement;
+};
+
+type Toast = Omit<ToasterToast, "id">;
+
+function toast({ ...props }: Toast) {
+  const id = genId();
+
+  const update = (props: ToasterToast) =>
+    dispatch({
+      type: "UPDATE_TOAST",
+      toast: { ...props, id },
+    });
+  const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id });
+
+  dispatch({
+    type: "ADD_TOAST",
+    toast: {
+      ...props,
+      id,
+      open: true,
+      onOpenChange: (open) => {
+        if (!open) dismiss();
+      },
+    },
+  });
+
+  return {
+    id: id,
+    dismiss,
+    update,
+  };
+}
+
+function useToast() {
+  const [state, setState] = React.useState<State>(memoryState);
+
+  React.useEffect(() => {
+    listeners.push(setState);
+    return () => {
+      const index = listeners.indexOf(setState);
+      if (index > -1) {
+        listeners.splice(index, 1);
+      }
+    };
+  }, [state]);
+
+  return {
+    ...state,
+    toast,
+    dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
+  };
+}
+
+export { useToast, toast };
+```
+
+### Usage Examples
+
+<CodeGroup>
+```tsx Success Toast
+import { useToast } from "@/hooks/use-toast";
+
+const Dashboard = () => {
+  const { toast } = useToast();
+
+  const handleSave = () => {
+    // Save logic...
+    toast({
+      title: "Alerta creada",
+      description: `Se ha creado la alerta exitosamente`,
+    });
+  };
+
+  return <Button onClick={handleSave}>Save</Button>;
+};
+```
+
+```tsx Error Toast
+const handleDelete = async (id: string) => {
+  try {
+    await deleteAlert(id);
+    toast({
+      title: "Alerta eliminada",
+      description: "La alerta ha sido eliminada del sistema",
+    });
+  } catch (error) {
+    toast({
+      title: "Error",
+      description: "No se pudo eliminar la alerta",
+      variant: "destructive",
+    });
+  }
+};
+```
+
+```tsx With Action Button
+toast({
+  title: "Cambios sin guardar",
+  description: "Tienes cambios sin guardar",
+  action: (
+    <Button size="sm" onClick={() => handleSave()}>
+      Guardar
+    </Button>
+  ),
+});
+```
+</CodeGroup>
+
+### Toast Props
+
+```tsx
+interface ToastProps {
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  action?: ToastActionElement;
+  variant?: "default" | "destructive";
+  duration?: number;
+}
+```
+
+---
+
+## Hook Composition
+
+Hooks can be composed together for complex functionality:
+
+```tsx src/pages/Dashboard.tsx
+import { useGraphQL } from "@/hooks/use-graphql";
+import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
+
+const Dashboard = () => {
+  const [alerts, setAlerts] = useState([]);
+  const { fetchGraphQL } = useGraphQL();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchAlerts = async () => {
+      try {
+        const query = `query { tipoAlertas { id nombre } }`;
+        const result = await fetchGraphQL("/alerts/graphql", query);
+        setAlerts(result.tipoAlertas);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las alertas",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchAlerts();
+  }, []);
+
+  return <div>{/* Render alerts */}</div>;
+};
+```
+
+<Note>
+  All hooks follow React Hook conventions and should only be called at the top level of React components.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Styling" icon="palette" href="/components/styling">
+    Learn about Tailwind CSS configuration
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the GraphQL API
+  </Card>
+</CardGroup>

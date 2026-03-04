@@ -1,0 +1,568 @@
+---
+title: 'WebSocket Notifications'
+description: 'Real-time alert notifications via WebSocket using SockJS and STOMP'
+---
+
+## Overview
+
+FleetGuard360 uses WebSocket connections to deliver real-time alert notifications to the frontend. The implementation uses **SockJS** for WebSocket transport and **STOMP** (Simple Text Oriented Messaging Protocol) for message routing.
+
+<Note>
+The WebSocket connection is automatically established when the `useWebSocketNotifications` hook is initialized with `autoConnect: true` (default behavior).
+</Note>
+
+## Connection Details
+
+### Endpoint Configuration
+
+The WebSocket connection uses a proxied endpoint configuration:
+
+<ParamField path="endpoint" type="string" required>
+  `/notifications/ws-alerts`
+</ParamField>
+
+<ParamField path="protocol" type="string" required>
+  SockJS + STOMP
+</ParamField>
+
+<ParamField path="proxy" type="object">
+  Configured in `vite.config.ts` to proxy `/notifications` to the backend server with WebSocket support enabled
+</ParamField>
+
+### Proxy Configuration
+
+```typescript vite.config.ts
+proxy: {
+  "/notifications": {
+    target: "http://fleetguard-api.ddns.net",
+    changeOrigin: true,
+    ws: true, // Enables WebSocket proxying
+    secure: false,
+  },
+}
+```
+
+## Notification Interface
+
+All notifications received through the WebSocket follow the `AlertNotification` interface:
+
+<ResponseField name="id" type="string" optional>
+  Unique identifier for the notification
+</ResponseField>
+
+<ResponseField name="alertType" type="string" required>
+  Type of alert (e.g., "Speed Violation", "Harsh Braking")
+</ResponseField>
+
+<ResponseField name="responsible" type="string" optional>
+  Person responsible for handling the alert
+</ResponseField>
+
+<ResponseField name="priority" type="string" optional>
+  Alert priority level ("Alta", "Media", "Baja")
+</ResponseField>
+
+<ResponseField name="driver" type="string" optional>
+  Driver involved in the alert
+</ResponseField>
+
+<ResponseField name="generatingUnit" type="string" required>
+  Vehicle or unit that generated the alert
+</ResponseField>
+
+<ResponseField name="state" type="string" optional>
+  Current state of the alert
+</ResponseField>
+
+<ResponseField name="statusAlert" type="string" optional>
+  Status of the alert (e.g., "Active", "Resolved")
+</ResponseField>
+
+<ResponseField name="generationDate" type="string" required>
+  ISO 8601 timestamp when the alert was generated
+</ResponseField>
+
+<ResponseField name="message" type="string" optional>
+  Additional message or description
+</ResponseField>
+
+### TypeScript Interface
+
+```typescript
+export interface AlertNotification {
+  id?: string;
+  alertType: string;
+  responsible?: string;
+  priority?: string;
+  driver?: string;
+  generatingUnit: string;
+  state?: string;
+  statusAlert?: string;
+  generationDate: string;
+  message?: string;
+}
+```
+
+## Using the WebSocket Hook
+
+### Basic Usage
+
+<Steps>
+  <Step title="Import the Hook">
+    Import `useWebSocketNotifications` from the hooks directory:
+    
+    ```typescript
+    import { useWebSocketNotifications } from "@/hooks/use-websocket-notifications";
+    ```
+  </Step>
+
+  <Step title="Initialize the Hook">
+    Call the hook with optional configuration:
+    
+    ```typescript
+    const { notifications, isConnected, clearNotifications } = 
+      useWebSocketNotifications({
+        onNotification: (notification) => {
+          // Handle incoming notification
+          console.log("New alert:", notification);
+        },
+        autoConnect: true, // Optional, defaults to true
+      });
+    ```
+  </Step>
+
+  <Step title="Access Notifications">
+    Use the returned values to display notifications and manage connection state:
+    
+    ```typescript
+    // Display connection status
+    {isConnected ? "Connected" : "Reconnecting..."}
+    
+    // Render notifications
+    {notifications.map(notification => (
+      <div key={notification.id}>
+        {notification.alertType} - {notification.generatingUnit}
+      </div>
+    ))}
+    ```
+  </Step>
+</Steps>
+
+### Hook Configuration
+
+<ParamField path="onNotification" type="function" optional>
+  Callback function invoked when a new notification is received
+  
+  ```typescript
+  (notification: AlertNotification) => void
+  ```
+</ParamField>
+
+<ParamField path="autoConnect" type="boolean" default="true">
+  Whether to automatically connect on mount. Set to `false` to manually control connection lifecycle.
+</ParamField>
+
+### Return Values
+
+<ResponseField name="isConnected" type="boolean">
+  Current WebSocket connection status
+</ResponseField>
+
+<ResponseField name="notifications" type="AlertNotification[]">
+  Array of received notifications, ordered by newest first
+</ResponseField>
+
+<ResponseField name="connect" type="function">
+  Manually establish WebSocket connection
+</ResponseField>
+
+<ResponseField name="disconnect" type="function">
+  Manually close WebSocket connection
+</ResponseField>
+
+<ResponseField name="clearNotifications" type="function">
+  Clear all notifications from the state
+</ResponseField>
+
+## Connection Lifecycle
+
+### Automatic Connection
+
+The hook automatically establishes a WebSocket connection on mount when `autoConnect` is `true`:
+
+<CodeGroup>
+```typescript Connection Flow
+// 1. Create SockJS socket
+const socket = new SockJS("/notifications/ws-alerts");
+
+// 2. Wrap with STOMP client
+const stompClient = Stomp.over(socket);
+
+// 3. Disable debug logs (optional)
+stompClient.debug = () => {};
+
+// 4. Connect with callbacks
+stompClient.connect(
+  {}, // Connection headers
+  (frame) => {
+    // Success callback
+    console.log("WebSocket connected:", frame);
+    setIsConnected(true);
+    
+    // Subscribe to alerts channel
+    stompClient.subscribe("/all/alerts", (message) => {
+      const alert: AlertNotification = JSON.parse(message.body);
+      // Handle notification
+    });
+  },
+  (error) => {
+    // Error callback
+    console.error("WebSocket error:", error);
+    setIsConnected(false);
+    
+    // Auto-reconnect after 5 seconds
+    setTimeout(() => connect(), 5000);
+  }
+);
+```
+
+```typescript Cleanup
+// Automatically disconnect on unmount
+useEffect(() => {
+  if (autoConnect) {
+    connect();
+  }
+
+  return () => {
+    disconnect();
+  };
+}, []);
+```
+</CodeGroup>
+
+### Subscription Pattern
+
+The hook subscribes to the `/all/alerts` STOMP topic:
+
+```typescript
+stompClient.subscribe("/all/alerts", (message) => {
+  try {
+    const alert: AlertNotification = JSON.parse(message.body);
+    
+    // Add to notifications array (newest first)
+    setNotifications((prev) => [alert, ...prev]);
+    
+    // Trigger callback if provided
+    if (onNotification) {
+      onNotification(alert);
+    }
+  } catch (error) {
+    console.error("Error processing notification:", error);
+  }
+});
+```
+
+### Reconnection Logic
+
+The hook includes automatic reconnection on connection failure:
+
+<Warning>
+  When a WebSocket error occurs, the hook automatically attempts to reconnect after a 5-second delay. This ensures persistent connectivity even with network interruptions.
+</Warning>
+
+```typescript
+(error: unknown) => {
+  console.error("Error in WebSocket:", error);
+  setIsConnected(false);
+
+  // Attempt reconnection after 5 seconds
+  setTimeout(() => {
+    console.log("Attempting to reconnect...");
+    connect();
+  }, 5000);
+}
+```
+
+## Real-World Example: NotificationBell
+
+The `NotificationBell` component demonstrates a complete integration of the WebSocket hook:
+
+<CodeGroup>
+```typescript NotificationBell.tsx
+import { useState } from "react";
+import { useWebSocketNotifications } from "@/hooks/use-websocket-notifications";
+import { useToast } from "@/hooks/use-toast";
+
+export const NotificationBell = () => {
+  const { toast } = useToast();
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Initialize WebSocket with notification handler
+  const { notifications, isConnected, clearNotifications } = 
+    useWebSocketNotifications({
+      onNotification: (notification) => {
+        // Show toast for new alerts
+        toast({
+          title: "Nueva Alerta",
+          description: `${notification.alertType} - ${notification.generatingUnit}`,
+          variant: notification.priority?.toLowerCase().includes("alta") 
+            ? "destructive" 
+            : "default",
+        });
+      },
+    });
+
+  const unreadCount = notifications.length;
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger>
+        <Bell />
+        {unreadCount > 0 && (
+          <Badge>{unreadCount > 9 ? "9+" : unreadCount}</Badge>
+        )}
+        {/* Connection indicator */}
+        <span className={isConnected ? 'bg-green-500' : 'bg-red-500'} />
+      </PopoverTrigger>
+      
+      <PopoverContent>
+        {/* Notification list */}
+        {notifications.map((notification) => (
+          <div key={notification.id}>
+            <h4>{notification.alertType}</h4>
+            <p>{notification.generatingUnit}</p>
+            {notification.driver && <p>Driver: {notification.driver}</p>}
+            {notification.priority && <Badge>{notification.priority}</Badge>}
+          </div>
+        ))}
+        
+        <Button onClick={clearNotifications}>Clear All</Button>
+      </PopoverContent>
+    </Popover>
+  );
+};
+```
+
+```typescript Toast Integration
+// Display priority-based toast notifications
+onNotification: (notification) => {
+  toast({
+    title: "Nueva Alerta",
+    description: `${notification.alertType} - ${notification.generatingUnit}`,
+    variant: notification.priority?.toLowerCase().includes("alta") 
+      ? "destructive"  // High priority = red toast
+      : "default",     // Normal priority = default toast
+  });
+}
+```
+
+```typescript Date Formatting
+// Format relative timestamps
+const formatDate = (isoDate: string) => {
+  const date = new Date(isoDate);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return "Ahora";
+  if (minutes < 60) return `Hace ${minutes}m`;
+  if (hours < 24) return `Hace ${hours}h`;
+  return `Hace ${days}d`;
+};
+```
+</CodeGroup>
+
+## Message Format
+
+### Incoming Message Structure
+
+Messages are received as JSON strings in the STOMP message body:
+
+```json Example Alert
+{
+  "id": "alert-123",
+  "alertType": "Speed Violation",
+  "responsible": "Fleet Manager",
+  "priority": "Alta",
+  "driver": "Juan Pérez",
+  "generatingUnit": "TRUCK-001",
+  "state": "Active",
+  "statusAlert": "Pending Review",
+  "generationDate": "2026-03-04T15:30:00.000Z",
+  "message": "Vehicle exceeded speed limit by 25 km/h"
+}
+```
+
+### Priority Levels
+
+The system uses Spanish priority levels:
+
+<ResponseField name="Alta" type="string">
+  High priority - Requires immediate attention (displayed with red badge)
+</ResponseField>
+
+<ResponseField name="Media" type="string">
+  Medium priority - Should be reviewed soon (displayed with yellow badge)
+</ResponseField>
+
+<ResponseField name="Baja" type="string">
+  Low priority - Can be reviewed later (displayed with green badge)
+</ResponseField>
+
+## Best Practices
+
+### Connection Management
+
+<Steps>
+  <Step title="Automatic Cleanup">
+    The hook automatically disconnects on component unmount. No manual cleanup required:
+    
+    ```typescript
+    // ✅ Automatic cleanup
+    const { notifications } = useWebSocketNotifications();
+    
+    // Hook handles disconnect on unmount
+    ```
+  </Step>
+
+  <Step title="Manual Control">
+    For fine-grained control, disable auto-connect and manage lifecycle manually:
+    
+    ```typescript
+    const { connect, disconnect, isConnected } = useWebSocketNotifications({
+      autoConnect: false
+    });
+    
+    // Connect when needed
+    useEffect(() => {
+      if (userIsAuthenticated) {
+        connect();
+      }
+      return () => disconnect();
+    }, [userIsAuthenticated]);
+    ```
+  </Step>
+</Steps>
+
+### Error Handling
+
+<Warning>
+Always implement error boundaries around components using WebSocket notifications to prevent connection errors from crashing the application.
+</Warning>
+
+```typescript
+try {
+  const alert: AlertNotification = JSON.parse(message.body);
+  setNotifications((prev) => [alert, ...prev]);
+  
+  if (onNotification) {
+    onNotification(alert);
+  }
+} catch (error) {
+  console.error("Error processing notification:", error);
+  // Connection remains active, only logs the error
+}
+```
+
+### Memory Management
+
+<Note>
+The notifications array grows unbounded by default. Implement cleanup strategies for long-running sessions:
+</Note>
+
+<CodeGroup>
+```typescript Clear All
+// Manual clear
+const { clearNotifications } = useWebSocketNotifications();
+
+<Button onClick={clearNotifications}>
+  Clear All Notifications
+</Button>
+```
+
+```typescript Auto-Limit
+// Limit to last 50 notifications
+setNotifications((prev) => [alert, ...prev].slice(0, 50));
+```
+
+```typescript Time-Based Cleanup
+// Remove notifications older than 24 hours
+useEffect(() => {
+  const interval = setInterval(() => {
+    const oneDayAgo = Date.now() - 86400000;
+    setNotifications(prev => 
+      prev.filter(n => new Date(n.generationDate).getTime() > oneDayAgo)
+    );
+  }, 300000); // Check every 5 minutes
+
+  return () => clearInterval(interval);
+}, []);
+```
+</CodeGroup>
+
+### Performance Optimization
+
+```typescript
+// ✅ Debounce toast notifications for high-frequency alerts
+import { useDebounce } from "@/hooks/use-debounce";
+
+const debouncedToast = useDebounce((notification: AlertNotification) => {
+  toast({
+    title: "Nueva Alerta",
+    description: `${notification.alertType} - ${notification.generatingUnit}`,
+  });
+}, 500);
+
+const { notifications } = useWebSocketNotifications({
+  onNotification: debouncedToast,
+});
+```
+
+## Connection Status Indicator
+
+Display real-time connection status to users:
+
+```typescript
+const { isConnected } = useWebSocketNotifications();
+
+// Visual indicator
+<div className="flex items-center gap-2">
+  <div className={`h-2 w-2 rounded-full ${
+    isConnected ? "bg-green-500" : "bg-yellow-500"
+  }`} />
+  <span>{isConnected ? "Connected" : "Reconnecting..."}</span>
+</div>
+```
+
+## Debugging
+
+Enable STOMP debug logs during development:
+
+```typescript
+const stompClient = Stomp.over(socket);
+
+// Enable debug logs
+if (import.meta.env.DEV) {
+  stompClient.debug = (str) => {
+    console.log('[STOMP Debug]:', str);
+  };
+} else {
+  stompClient.debug = () => {}; // Disable in production
+}
+```
+
+## Summary
+
+The WebSocket notification system provides:
+
+- ✅ Real-time alert delivery via SockJS + STOMP
+- ✅ Automatic reconnection on connection loss
+- ✅ Type-safe `AlertNotification` interface
+- ✅ Built-in connection state management
+- ✅ Flexible callback system for custom handling
+- ✅ Automatic cleanup on component unmount
+- ✅ Production-ready error handling
+
+See the source implementation in `src/hooks/use-websocket-notifications.ts:1` and usage example in `src/components/NotificationBell.tsx:1`.

@@ -1,0 +1,436 @@
+---
+title: 'Power BI Integration'
+description: 'Embed Power BI dashboards and export alert data to CSV for advanced analytics'
+icon: 'chart-line'
+---
+
+## Overview
+
+FleetGuard360 integrates with Microsoft Power BI to provide advanced analytics and visualization of recurring alerts. The system also supports CSV export for custom reporting.
+
+## Power BI Dashboard Embedding
+
+### Dashboard Configuration
+
+From `Estadisticas.tsx:88-99`, the Power BI dashboard is embedded using an iframe:
+
+```tsx
+<iframe 
+  title="Informe Fabrica Escuela 2025-2 Alertas" 
+  width="100%" 
+  height="900" 
+  src="https://app.powerbi.com/view?r=eyJrIjoiNDAxZGE3OTUtYjliNi00MjYyLTlmNmItMTA4YTY2NzVmZGQxIiwidCI6Ijk5ZTFlNzIxLTcxODQtNDk4ZS04YWZmLWIyYWQ0ZTUzYzFjMiIsImMiOjR9" 
+  frameBorder="0" 
+  allowFullScreen={true}
+  className="w-full"
+/>
+```
+
+### Report Parameters
+
+The embedded URL contains:
+
+<ParamField path="r" type="string">
+  Base64-encoded report configuration containing:
+  - **k** (key): Report identifier
+  - **t** (tenant): Organization tenant ID
+  - **c** (config): Additional configuration flags
+</ParamField>
+
+### Responsive Design
+
+The iframe is wrapped in a container for proper styling:
+
+```tsx
+<div className="bg-[#141C2F] rounded-lg overflow-hidden shadow-lg">
+  <iframe 
+    title="Informe Fabrica Escuela 2025-2 Alertas" 
+    width="100%" 
+    height="900" 
+    src="..."
+    frameBorder="0" 
+    allowFullScreen={true}
+    className="w-full"
+  />
+</div>
+```
+
+<Note>
+  The `allowFullScreen` attribute enables users to expand the dashboard to full screen for detailed analysis.
+</Note>
+
+## CSV Export Functionality
+
+### Export Query
+
+From `Estadisticas.tsx:22-26`, the system uses a GraphQL query to get the CSV download URL:
+
+```graphql
+query {
+  exportAlertsCsvUrl
+}
+```
+
+### Implementation
+
+From `Estadisticas.tsx:13-61`, the export functionality:
+
+```typescript
+const [isExporting, setIsExporting] = useState(false);
+const { fetchGraphQL } = useGraphQL();
+
+const handleExportCSV = async () => {
+  setIsExporting(true);
+  try {
+    toast({
+      title: "Preparando exportación",
+      description: "Generando archivo CSV...",
+    });
+
+    // Fetch the download URL
+    const query = `
+      query {
+        exportAlertsCsvUrl
+      }
+    `;
+
+    const result = await fetchGraphQL<{ exportAlertsCsvUrl: string }>(
+      "/panel/graphql",
+      query
+    );
+
+    const downloadUrl = result.exportAlertsCsvUrl;
+
+    // Create a download link
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `alertas_${new Date().toISOString().split('T')[0]}.csv`;
+    link.target = "_blank";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Exportación exitosa",
+      description: "El archivo CSV ha sido descargado correctamente",
+    });
+    
+  } catch (error) {
+    console.error("Error exportando CSV:", error);
+    toast({
+      title: "Error",
+      description: "No se pudo exportar el archivo CSV",
+      variant: "destructive",
+    });
+  } finally {
+    setIsExporting(false);
+  }
+};
+```
+
+### Export Button UI
+
+From `Estadisticas.tsx:78-85`:
+
+```tsx
+<Button 
+  onClick={handleExportCSV}
+  disabled={isExporting}
+  className="bg-[#3B82F6] hover:bg-[#2563EB] text-white font-medium px-6 gap-2"
+>
+  <Download className="h-5 w-5" />
+  {isExporting ? "Exportando..." : "Exportar a CSV"}
+</Button>
+```
+
+## Page Layout
+
+### Header Section
+
+From `Estadisticas.tsx:69-86`:
+
+```tsx
+<div className="bg-[#0A2846] rounded-lg px-6 py-4 mb-6 flex items-center justify-between">
+  <div className="flex items-center gap-3">
+    <BarChart3 className="h-8 w-8 text-[#3B82F6]" />
+    <h1 className="text-2xl font-semibold text-white tracking-wide uppercase">
+      Tablero de Alertas Recurrentes
+    </h1>
+  </div>
+  
+  <Button 
+    onClick={handleExportCSV}
+    disabled={isExporting}
+    className="bg-[#3B82F6] hover:bg-[#2563EB] text-white font-medium px-6 gap-2"
+  >
+    <Download className="h-5 w-5" />
+    {isExporting ? "Exportando..." : "Exportar a CSV"}
+  </Button>
+</div>
+```
+
+### Complete Page Structure
+
+```tsx
+import { Button } from "@/components/ui/button";
+import { Download, BarChart3 } from "lucide-react";
+import { Sidebar } from "@/components/Sidebar";
+import { useToast } from "@/hooks/use-toast";
+import { useGraphQL } from "@/hooks/use-graphql";
+import { useState } from "react";
+
+const Estadisticas = () => {
+  const { toast } = useToast();
+  const { fetchGraphQL } = useGraphQL();
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportCSV = async () => {
+    // ... export logic
+  };
+
+  return (
+    <div className="min-h-screen flex w-full bg-[#0E1525]">
+      <Sidebar />
+
+      <main className="ml-[240px] flex-1 p-6">
+        {/* Header with export button */}
+        <div className="bg-[#0A2846] rounded-lg px-6 py-4 mb-6 flex items-center justify-between">
+          {/* ... header content */}
+        </div>
+
+        {/* Power BI Dashboard */}
+        <div className="bg-[#141C2F] rounded-lg overflow-hidden shadow-lg">
+          <iframe 
+            title="Informe Fabrica Escuela 2025-2 Alertas" 
+            width="100%" 
+            height="900" 
+            src="https://app.powerbi.com/view?r=..."
+            frameBorder="0" 
+            allowFullScreen={true}
+            className="w-full"
+          />
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default Estadisticas;
+```
+
+## CSV File Format
+
+The exported CSV file includes all alert history data:
+
+```csv
+id,alertType,responsible,priority,driver,generatingUnit,state,generationDate
+123,Exceso de velocidad,Área de monitoreo,Alta,Carlos Sanchez,Camión-123,En proceso,2026-03-04T10:30:00Z
+124,Frenado brusco,Mantenimiento,Media,Ana Gómez,Furgoneta-456,Resuelto,2026-03-04T11:15:00Z
+```
+
+### CSV Fields
+
+<ParamField path="id" type="string">
+  Unique alert identifier
+</ParamField>
+
+<ParamField path="alertType" type="string">
+  Type of alert generated
+</ParamField>
+
+<ParamField path="responsible" type="string">
+  Responsible party or department
+</ParamField>
+
+<ParamField path="priority" type="string">
+  Priority level: Alta, Media, or Baja
+</ParamField>
+
+<ParamField path="driver" type="string">
+  Driver name associated with the alert
+</ParamField>
+
+<ParamField path="generatingUnit" type="string">
+  Vehicle or unit that generated the alert
+</ParamField>
+
+<ParamField path="state" type="string">
+  Current state: En espera, En proceso, or Resuelto
+</ParamField>
+
+<ParamField path="generationDate" type="string">
+  ISO 8601 timestamp of alert generation
+</ParamField>
+
+## File Download Flow
+
+### Step-by-Step Process
+
+1. **User clicks export button**
+   ```typescript
+   <Button onClick={handleExportCSV} disabled={isExporting}>
+   ```
+
+2. **Show loading state**
+   ```typescript
+   setIsExporting(true);
+   toast({ title: "Preparando exportación", ... });
+   ```
+
+3. **Query GraphQL for download URL**
+   ```typescript
+   const result = await fetchGraphQL<{ exportAlertsCsvUrl: string }>(
+     "/panel/graphql",
+     query
+   );
+   ```
+
+4. **Create temporary download link**
+   ```typescript
+   const link = document.createElement("a");
+   link.href = downloadUrl;
+   link.download = `alertas_${new Date().toISOString().split('T')[0]}.csv`;
+   link.target = "_blank";
+   ```
+
+5. **Trigger download**
+   ```typescript
+   document.body.appendChild(link);
+   link.click();
+   document.body.removeChild(link);
+   ```
+
+6. **Show success/error message**
+   ```typescript
+   toast({ title: "Exportación exitosa", ... });
+   setIsExporting(false);
+   ```
+
+<Note>
+  The download link is added to the DOM, clicked programmatically, then removed to keep the DOM clean.
+</Note>
+
+## Use Cases
+
+### Power BI Dashboard
+
+<Tabs>
+  <Tab title="Recurring Alerts">
+    Visualize which alert types occur most frequently across your fleet.
+  </Tab>
+  <Tab title="Priority Distribution">
+    Analyze the distribution of high, medium, and low priority alerts.
+  </Tab>
+  <Tab title="Unit Performance">
+    Identify which vehicles or units generate the most alerts.
+  </Tab>
+  <Tab title="Time Analysis">
+    Track alert trends over time (daily, weekly, monthly).
+  </Tab>
+</Tabs>
+
+### CSV Export
+
+<Tabs>
+  <Tab title="Custom Analysis">
+    Import data into Excel, Google Sheets, or other tools for custom analysis.
+  </Tab>
+  <Tab title="Compliance Reporting">
+    Generate compliance reports for audits and regulatory requirements.
+  </Tab>
+  <Tab title="Third-Party Integration">
+    Feed data into external BI tools or data warehouses.
+  </Tab>
+  <Tab title="Archive">
+    Create historical backups of alert data.
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<Note>
+  **File naming** - CSV files are automatically named with the current date: `alertas_2026-03-04.csv`
+</Note>
+
+<Note>
+  **Loading states** - Always show loading indicators during export to provide feedback to users.
+</Note>
+
+<Warning>
+  **Error handling** - Wrap export logic in try-catch blocks and show user-friendly error messages.
+</Warning>
+
+<Note>
+  **Toast notifications** - Use toast messages to confirm successful exports or report errors.
+</Note>
+
+<Note>
+  **Target blank** - Opening CSV in a new tab (`target="_blank"`) prevents navigation away from the dashboard.
+</Note>
+
+## Power BI Customization
+
+### Obtaining Your Report URL
+
+1. **Publish to Power BI Service**
+   - Create your report in Power BI Desktop
+   - Publish to Power BI Service workspace
+
+2. **Share Report**
+   - Open report in Power BI Service
+   - Click "File" → "Embed report" → "Website or portal"
+   - Copy the secure embed URL
+
+3. **Update Component**
+   ```tsx
+   <iframe 
+     src="YOUR_POWERBI_EMBED_URL_HERE"
+     // ... other props
+   />
+   ```
+
+<Warning>
+  Ensure your Power BI report permissions are correctly configured to allow embedding.
+</Warning>
+
+## Troubleshooting
+
+### Power BI Dashboard Not Loading
+
+1. **Check URL validity** - Verify the embed URL is correct and accessible
+2. **CORS issues** - Power BI must allow embedding from your domain
+3. **Permission errors** - Ensure the report has public sharing enabled or appropriate permissions
+
+### CSV Export Fails
+
+1. **Check authentication** - Ensure JWT token is valid
+2. **Backend availability** - Verify the `/panel/graphql` endpoint is accessible
+3. **Browser blocking** - Check if popup blockers are preventing the download
+4. **Network errors** - Inspect browser console for network errors
+
+### Export Button Stuck Loading
+
+```typescript
+// Always reset loading state in finally block
+try {
+  // ... export logic
+} catch (error) {
+  // ... error handling
+} finally {
+  setIsExporting(false); // Always reset
+}
+```
+
+## Security Considerations
+
+<Warning>
+  **Public embedding** - The current Power BI URL is publicly accessible. For production, use row-level security (RLS) or embed tokens.
+</Warning>
+
+<Note>
+  **CSV data** - The export URL is obtained via authenticated GraphQL request, ensuring only authorized users can export data.
+</Note>
+
+<Note>
+  **JWT validation** - All GraphQL requests are authenticated with JWT Bearer tokens.
+</Note>

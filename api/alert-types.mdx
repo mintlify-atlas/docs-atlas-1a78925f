@@ -1,0 +1,652 @@
+---
+title: 'Alert Types API'
+description: 'Manage alert type configurations and priority levels'
+---
+
+## Overview
+
+The Alert Types API allows you to configure alert types, including their names, descriptions, priority levels, and responsible parties. This API uses GraphQL queries and mutations.
+
+<Note>
+  All alert type operations use the `/api/alerts/graphql` endpoint.
+</Note>
+
+## Priority Levels
+
+### Query: nivelesPrioridad
+
+Retrieve all available priority levels in the system.
+
+From `~/workspace/source/src/pages/Dashboard.tsx:59-66`:
+
+```graphql
+query GetAllNivelesPrioridad {
+  nivelesPrioridad {
+    id
+    nombre
+  }
+}
+```
+
+#### Request
+
+<CodeGroup>
+```typescript TypeScript
+import { useGraphQL } from "@/hooks/use-graphql";
+
+const { fetchGraphQL } = useGraphQL();
+
+const query = `
+  query GetAllNivelesPrioridad {
+    nivelesPrioridad {
+      id
+      nombre
+    }
+  }
+`;
+
+const result = await fetchGraphQL<{ nivelesPrioridad: PriorityLevel[] }>(
+  "/alerts/graphql",
+  query
+);
+```
+
+```javascript Fetch
+const response = await fetch('/api/alerts/graphql', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify({
+    query: `
+      query GetAllNivelesPrioridad {
+        nivelesPrioridad {
+          id
+          nombre
+        }
+      }
+    `
+  })
+});
+```
+</CodeGroup>
+
+#### Response Fields
+
+<ResponseField name="nivelesPrioridad" type="array">
+  Array of priority level objects
+  
+  <Expandable title="PriorityLevel Object">
+    <ResponseField name="id" type="number" required>
+      Unique identifier for the priority level
+      
+      Typical values:
+      - `1` - Low/Baja priority
+      - `2` - Medium/Media priority
+      - `3` - High/Alta priority
+    </ResponseField>
+    
+    <ResponseField name="nombre" type="string" required>
+      Display name of the priority level (e.g., "Alta", "Media", "Baja")
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Response Example
+
+```json
+{
+  "data": {
+    "nivelesPrioridad": [
+      { "id": 1, "nombre": "Baja" },
+      { "id": 2, "nombre": "Media" },
+      { "id": 3, "nombre": "Alta" }
+    ]
+  }
+}
+```
+
+#### TypeScript Interface
+
+From `~/workspace/source/src/pages/Dashboard.tsx:25-28`:
+
+```typescript
+interface PriorityLevel {
+  id: number;
+  nombre: string;
+}
+```
+
+---
+
+## Alert Types
+
+### Query: tipoAlertas
+
+Retrieve all configured alert types in the system.
+
+From `~/workspace/source/src/pages/Dashboard.tsx:81-94`:
+
+```graphql
+query GetAllTipoAlertas {
+  tipoAlertas {
+    id
+    nombre
+    descripcion
+    nivelPrioridad {
+      id
+      nombre
+    }
+    tipoEncargado
+  }
+}
+```
+
+#### Request
+
+<CodeGroup>
+```typescript TypeScript
+const query = `
+  query GetAllTipoAlertas {
+    tipoAlertas {
+      id
+      nombre
+      descripcion
+      nivelPrioridad {
+        id
+        nombre
+      }
+      tipoEncargado
+    }
+  }
+`;
+
+const result = await fetchGraphQL<{ tipoAlertas: TipoAlertaResponse[] }>(
+  "/alerts/graphql",
+  query
+);
+```
+
+```javascript Fetch
+const response = await fetch('/api/alerts/graphql', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify({
+    query: `
+      query GetAllTipoAlertas {
+        tipoAlertas {
+          id
+          nombre
+          descripcion
+          nivelPrioridad {
+            id
+            nombre
+          }
+          tipoEncargado
+        }
+      }
+    `
+  })
+});
+```
+</CodeGroup>
+
+#### Response Fields
+
+<ResponseField name="tipoAlertas" type="array">
+  Array of alert type configuration objects
+  
+  <Expandable title="TipoAlerta Object">
+    <ResponseField name="id" type="number" required>
+      Unique identifier for the alert type
+    </ResponseField>
+    
+    <ResponseField name="nombre" type="string" required>
+      Name of the alert type (e.g., "Exceso de velocidad", "Frenado brusco")
+    </ResponseField>
+    
+    <ResponseField name="descripcion" type="string" required>
+      Short description of what triggers this alert type
+    </ResponseField>
+    
+    <ResponseField name="nivelPrioridad" type="object" required>
+      Nested priority level object
+      
+      <Expandable title="Properties">
+        <ResponseField name="id" type="number">
+          Priority level ID
+        </ResponseField>
+        
+        <ResponseField name="nombre" type="string">
+          Priority level name
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="tipoEncargado" type="string" required>
+      Type of responsible party for this alert
+      
+      Possible values:
+      - `"MECANICO"` - Mechanical team
+      - `"SEGURIDAD"` - Security team
+      - `"OPERADOR_LOGISTICA"` - Logistics operator
+      - `"SOPORTE_TECNICO"` - Technical support
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Response Example
+
+```json
+{
+  "data": {
+    "tipoAlertas": [
+      {
+        "id": 1,
+        "nombre": "Exceso de velocidad",
+        "descripcion": "Vehículo excediendo límites de velocidad permitidos",
+        "nivelPrioridad": {
+          "id": 3,
+          "nombre": "Alta"
+        },
+        "tipoEncargado": "SEGURIDAD"
+      },
+      {
+        "id": 2,
+        "nombre": "Mantenimiento preventivo",
+        "descripcion": "Alerta de mantenimiento programado",
+        "nivelPrioridad": {
+          "id": 2,
+          "nombre": "Media"
+        },
+        "tipoEncargado": "MECANICO"
+      }
+    ]
+  }
+}
+```
+
+#### TypeScript Interface
+
+From `~/workspace/source/src/pages/Dashboard.tsx:30-39`:
+
+```typescript
+interface TipoAlertaResponse {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  nivelPrioridad: {
+    id: number;
+    nombre: string;
+  };
+  tipoEncargado: string;
+}
+```
+
+---
+
+## Mutations
+
+### Mutation: createTipoAlerta
+
+Create a new alert type configuration.
+
+From `~/workspace/source/src/pages/Dashboard.tsx:177-199`:
+
+```graphql
+mutation CreateTipoAlerta($input: TipoAlertaCreateInput!) {
+  createTipoAlerta(input: $input) {
+    id
+    nombre
+    descripcion
+    nivelPrioridad {
+      id
+      nombre
+    }
+    tipoEncargado
+  }
+}
+```
+
+#### Variables
+
+<ParamField path="input" type="TipoAlertaCreateInput" required>
+  Input object for creating a new alert type
+  
+  <Expandable title="TipoAlertaCreateInput Fields">
+    <ParamField path="nombre" type="string" required>
+      Name of the alert type
+    </ParamField>
+    
+    <ParamField path="descripcion" type="string" required>
+      Description of the alert type
+    </ParamField>
+    
+    <ParamField path="nivelPrioridadId" type="number" required>
+      ID of the priority level (1, 2, or 3)
+    </ParamField>
+    
+    <ParamField path="tipoEncargado" type="string" required>
+      Type of responsible party
+      
+      Must be one of:
+      - `"MECANICO"`
+      - `"SEGURIDAD"`
+      - `"OPERADOR_LOGISTICA"`
+      - `"SOPORTE_TECNICO"`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### Request Example
+
+<CodeGroup>
+```typescript TypeScript
+const mutation = `
+  mutation CreateTipoAlerta($input: TipoAlertaCreateInput!) {
+    createTipoAlerta(input: $input) {
+      id
+      nombre
+      descripcion
+      nivelPrioridad {
+        id
+        nombre
+      }
+      tipoEncargado
+    }
+  }
+`;
+
+const variables = {
+  input: {
+    nombre: "Nueva Alerta",
+    descripcion: "Descripción de la alerta",
+    nivelPrioridadId: 2,
+    tipoEncargado: "MECANICO",
+  },
+};
+
+const result = await fetchGraphQL<{ createTipoAlerta: TipoAlertaResponse }>(
+  "/alerts/graphql",
+  mutation,
+  variables
+);
+```
+
+```json Variables
+{
+  "input": {
+    "nombre": "Batería baja",
+    "descripcion": "Nivel de batería por debajo del umbral crítico",
+    "nivelPrioridadId": 2,
+    "tipoEncargado": "SOPORTE_TECNICO"
+  }
+}
+```
+</CodeGroup>
+
+#### Response
+
+Returns the created TipoAlerta object with all fields populated, including the generated `id`.
+
+---
+
+### Mutation: updateTipoAlerta
+
+Update an existing alert type configuration.
+
+From `~/workspace/source/src/pages/Dashboard.tsx:153-175`:
+
+```graphql
+mutation UpdateTipoAlerta($id: Int!, $input: TipoAlertaUpdateInput!) {
+  updateTipoAlerta(id: $id, input: $input) {
+    id
+    nombre
+    descripcion
+    nivelPrioridad {
+      id
+      nombre
+    }
+    tipoEncargado
+  }
+}
+```
+
+#### Variables
+
+<ParamField path="id" type="number" required>
+  ID of the alert type to update
+</ParamField>
+
+<ParamField path="input" type="TipoAlertaUpdateInput" required>
+  Input object with fields to update
+  
+  <Expandable title="TipoAlertaUpdateInput Fields">
+    <ParamField path="nombre" type="string">
+      Updated name (optional)
+    </ParamField>
+    
+    <ParamField path="descripcion" type="string">
+      Updated description (optional)
+    </ParamField>
+    
+    <ParamField path="nivelPrioridadId" type="number">
+      Updated priority level ID (optional)
+    </ParamField>
+    
+    <ParamField path="tipoEncargado" type="string">
+      Updated responsible party type (optional)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### Request Example
+
+<CodeGroup>
+```typescript TypeScript
+const mutation = `
+  mutation UpdateTipoAlerta($id: Int!, $input: TipoAlertaUpdateInput!) {
+    updateTipoAlerta(id: $id, input: $input) {
+      id
+      nombre
+      descripcion
+      nivelPrioridad {
+        id
+        nombre
+      }
+      tipoEncargado
+    }
+  }
+`;
+
+const variables = {
+  id: 5,
+  input: {
+    nombre: "Nombre actualizado",
+    descripcion: "Nueva descripción",
+    nivelPrioridadId: 3,
+    tipoEncargado: "SEGURIDAD",
+  },
+};
+
+const result = await fetchGraphQL<{ updateTipoAlerta: TipoAlertaResponse }>(
+  "/alerts/graphql",
+  mutation,
+  variables
+);
+```
+
+```json Variables
+{
+  "id": 5,
+  "input": {
+    "nombre": "Exceso de velocidad crítico",
+    "nivelPrioridadId": 3
+  }
+}
+```
+</CodeGroup>
+
+#### Response
+
+Returns the updated TipoAlerta object with all current field values.
+
+---
+
+### Mutation: deleteTipoAlerta
+
+Delete an alert type configuration.
+
+From `~/workspace/source/src/pages/Dashboard.tsx:263-267`:
+
+```graphql
+mutation DeleteTipoAlerta($id: Int!) {
+  deleteTipoAlerta(id: $id)
+}
+```
+
+#### Variables
+
+<ParamField path="id" type="number" required>
+  ID of the alert type to delete
+</ParamField>
+
+#### Request Example
+
+<CodeGroup>
+```typescript TypeScript
+const mutation = `
+  mutation DeleteTipoAlerta($id: Int!) {
+    deleteTipoAlerta(id: $id)
+  }
+`;
+
+const variables = { id: 5 };
+
+const result = await fetchGraphQL<{ deleteTipoAlerta: boolean }>(
+  "/alerts/graphql",
+  mutation,
+  variables
+);
+
+if (result.deleteTipoAlerta) {
+  console.log("Alert type deleted successfully");
+}
+```
+
+```json Variables
+{
+  "id": 5
+}
+```
+</CodeGroup>
+
+#### Response
+
+<ResponseField name="deleteTipoAlerta" type="boolean">
+  Returns `true` if deletion was successful, `false` otherwise
+</ResponseField>
+
+```json
+{
+  "data": {
+    "deleteTipoAlerta": true
+  }
+}
+```
+
+---
+
+## Priority Level Mapping
+
+From `~/workspace/source/src/pages/Dashboard.tsx:125-136`:
+
+```typescript
+const getPriorityId = (priority: string): number => {
+  // If priority is a number (ID), return it
+  const id = parseInt(priority);
+  if (!isNaN(id)) return id;
+  
+  // Fallback for compatibility
+  const p = priority.toLowerCase();
+  if (p.includes("alta") || p === "high") return 3;
+  if (p.includes("media") || p === "medium") return 2;
+  if (p.includes("baja") || p === "low") return 1;
+  return 1;
+};
+```
+
+## UI Priority Colors
+
+From `~/workspace/source/src/pages/Dashboard.tsx:292-299`:
+
+```typescript
+const getPriorityColor = (priorityId: number) => {
+  switch (priorityId) {
+    case 3: return "bg-priority-critical text-white";
+    case 2: return "bg-priority-medium text-white";
+    case 1: return "bg-aqua-green text-white";
+    default: return "bg-muted text-muted-foreground";
+  }
+};
+```
+
+## Error Handling
+
+From `~/workspace/source/src/pages/Dashboard.tsx:235-243`:
+
+```typescript
+try {
+  const result = await fetchGraphQL<{ createTipoAlerta: TipoAlertaResponse }>(
+    "/alerts/graphql",
+    mutation,
+    variables
+  );
+  // Handle success
+} catch (error: unknown) {
+  const message = error instanceof Error 
+    ? error.message 
+    : "No se pudo guardar la alerta";
+  toast({
+    title: "Error al guardar la alerta",
+    description: message,
+    variant: "destructive",
+  });
+}
+```
+
+## Validation
+
+Before creating or updating an alert type, validate all required fields:
+
+From `~/workspace/source/src/pages/Dashboard.tsx:139-146`:
+
+```typescript
+if (!newAlert.name || !newAlert.description || !newAlert.priority || !newAlert.area) {
+  toast({
+    title: "Error",
+    description: "Por favor completa todos los campos",
+    variant: "destructive",
+  });
+  return;
+}
+```
+
+<Warning>
+  All fields (nombre, descripcion, nivelPrioridadId, tipoEncargado) are required when creating a new alert type.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Alerts API" icon="bell" href="/api/alerts">
+    Query generated alerts using configured alert types
+  </Card>
+  <Card title="Statistics" icon="chart-bar" href="/api/statistics">
+    Export and analyze alert data
+  </Card>
+</CardGroup>

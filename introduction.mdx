@@ -1,0 +1,194 @@
+---
+title: Introduction to FleetGuard360
+description: A comprehensive SaaS platform for real-time fleet monitoring and intelligent satellite-based tracking for passenger transport
+---
+
+## What is FleetGuard360?
+
+FleetGuard360 is an **Intelligent Satellite Monitoring System** designed specifically for passenger transport operations. It provides real-time fleet tracking, alert management, and comprehensive analytics to help transport operators maintain safety, efficiency, and operational excellence.
+
+<Note>
+  FleetGuard360 combines real-time data processing, WebSocket notifications, and GraphQL APIs to deliver instant insights into your fleet operations.
+</Note>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Real-Time Alerts" icon="bell">
+    Instant notifications for critical events like speeding, harsh braking, geofence violations, and vehicle status changes. All alerts are prioritized and routed to the appropriate responsible teams.
+  </Card>
+  
+  <Card title="WebSocket Notifications" icon="satellite-dish">
+    Live, bidirectional communication using WebSocket technology (SockJS + STOMP) ensures you receive alerts the moment they occur without page refreshes.
+  </Card>
+  
+  <Card title="GraphQL API" icon="code">
+    Flexible, efficient data querying with GraphQL endpoints for alerts, statistics, and fleet management. Query exactly the data you need, nothing more.
+  </Card>
+  
+  <Card title="Power BI Integration" icon="chart-line">
+    Export and integrate data with Power BI for advanced analytics, custom dashboards, and executive reporting.
+  </Card>
+</CardGroup>
+
+## Architecture Overview
+
+FleetGuard360 is built on modern web technologies to ensure performance, scalability, and developer experience:
+
+- **Frontend Framework**: React 18.3 with TypeScript for type-safe development
+- **Build Tool**: Vite 5.4 for lightning-fast builds and hot module replacement
+- **UI Components**: shadcn/ui + Radix UI for accessible, customizable components
+- **Styling**: Tailwind CSS for utility-first styling
+- **State Management**: TanStack Query (React Query) for server state
+- **Real-Time**: SockJS + STOMP for WebSocket connections
+- **API Layer**: GraphQL for efficient data fetching
+- **Routing**: React Router v6 for client-side navigation
+
+<CodeGroup>
+```json package.json
+{
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-router-dom": "^6.30.1",
+    "@tanstack/react-query": "^5.83.0",
+    "sockjs-client": "^1.6.1",
+    "stompjs": "^2.3.3",
+    "@radix-ui/react-alert-dialog": "^1.1.14",
+    "@radix-ui/react-toast": "^1.2.14",
+    "lucide-react": "^0.462.0",
+    "recharts": "^2.15.4"
+  }
+}
+```
+</CodeGroup>
+
+## Who Should Use This Documentation?
+
+This documentation is designed for:
+
+<AccordionGroup>
+  <Accordion title="Frontend Developers">
+    Learn how to set up the development environment, work with React components, integrate with GraphQL APIs, and implement WebSocket notifications.
+  </Accordion>
+  
+  <Accordion title="System Administrators">
+    Understand deployment configurations, environment variables, proxy settings, and production hosting on Vercel.
+  </Accordion>
+  
+  <Accordion title="Fleet Operators">
+    Discover how to use the alert management system, configure alert types, manage priority levels, and monitor fleet activities.
+  </Accordion>
+  
+  <Accordion title="Integration Engineers">
+    Explore GraphQL schemas, WebSocket endpoints, authentication flows, and third-party integrations like Power BI.
+  </Accordion>
+</AccordionGroup>
+
+## Core Capabilities
+
+### Alert Management System
+
+FleetGuard360's alert system supports:
+
+- **Configurable Alert Types**: Create custom alert types with names, descriptions, and responsible areas
+- **Priority Levels**: Three-tier priority system (High, Medium, Low) with visual indicators
+- **Responsible Areas**: Route alerts to specific teams (Mechanic, Security, Logistics, Technical Support)
+- **Alert States**: Track alert lifecycle (Pending, In Progress, Resolved)
+- **Historical Records**: Complete audit trail of all alerts with timestamps
+
+<Note>
+  Alert configurations are managed through the Dashboard page (`/dashboard`) and use GraphQL mutations for CRUD operations. See [Alert Management](/features/alert-management) for details.
+</Note>
+
+### Real-Time Notification Engine
+
+The notification system leverages WebSocket technology:
+
+```typescript src/hooks/use-websocket-notifications.ts
+import SockJS from "sockjs-client";
+import Stomp from "stompjs";
+
+const socket = new SockJS("/notifications/ws-alerts");
+const stompClient = Stomp.over(socket);
+
+stompClient.subscribe("/all/alerts", (message) => {
+  const alert = JSON.parse(message.body);
+  // Handle real-time alert notification
+});
+```
+
+See [WebSocket Integration](/integration/websocket) for implementation details.
+
+### GraphQL API Integration
+
+All data operations use GraphQL for efficient querying:
+
+```typescript src/hooks/use-graphql.ts
+const { fetchGraphQL } = useGraphQL();
+
+const query = `
+  query GetAllAlerts {
+    getAllAlerts {
+      id
+      alertType
+      priority
+      state
+      generationDate
+    }
+  }
+`;
+
+const result = await fetchGraphQL("/panel/graphql", query);
+```
+
+Explore the [GraphQL API Reference](/api/overview) for all available queries and mutations.
+
+## Application Routes
+
+FleetGuard360 includes the following main routes:
+
+| Route | Component | Description |
+|-------|-----------|-------------|
+| `/` | Login | Authentication page for operators |
+| `/dashboard` | Dashboard | Alert configuration and management |
+| `/panel-de-alertas` | PanelDeAlertas | Alert history and filtering |
+| `/estadisticas` | Estadisticas | Statistics and analytics |
+
+<Warning>
+  All routes except `/` require JWT authentication. Unauthenticated users are redirected to the login page.
+</Warning>
+
+## Getting Started
+
+Ready to start developing with FleetGuard360?
+
+<CardGroup cols={2}>
+  <Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+    Get the application running in under 5 minutes
+  </Card>
+  
+  <Card title="Installation" icon="download" href="/installation">
+    Detailed setup instructions and environment configuration
+  </Card>
+  
+  <Card title="Authentication" icon="lock" href="/features/authentication">
+    Learn how JWT authentication works in FleetGuard360
+  </Card>
+  
+  <Card title="Development Guide" icon="code" href="/development/architecture">
+    Best practices for developing with React, TypeScript, and Vite
+  </Card>
+</CardGroup>
+
+## Need Help?
+
+If you encounter issues or have questions:
+
+- Check the [Installation Guide](/installation) for setup help
+- Review the [Quickstart Guide](/quickstart) for common workflows
+- Explore [API Reference](/api/overview)
+- Contact the development team
+
+<Note>
+  FleetGuard360 is actively developed. Check the repository at `https://github.com/CodeFactory-FleetGuard360-EV04/Frontend` for the latest updates.
+</Note>

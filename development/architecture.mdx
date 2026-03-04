@@ -1,0 +1,407 @@
+---
+title: 'Architecture Overview'
+description: 'Comprehensive overview of FleetGuard360 frontend architecture, technology stack, and project structure'
+---
+
+## Technology Stack
+
+FleetGuard360 is built with modern web technologies designed for performance, maintainability, and developer experience:
+
+<CardGroup cols={2}>
+  <Card title="React 18.3.1" icon="react">
+    Modern React with hooks and concurrent features
+  </Card>
+  <Card title="TypeScript 5.8.3" icon="code">
+    Type-safe development with TypeScript
+  </Card>
+  <Card title="Vite 5.4.19" icon="bolt">
+    Lightning-fast build tool and dev server
+  </Card>
+  <Card title="shadcn/ui" icon="palette">
+    Beautiful, accessible component library
+  </Card>
+</CardGroup>
+
+### Core Dependencies
+
+- **React Router DOM 6.30.1** - Client-side routing
+- **TanStack Query 5.83.0** - Server state management
+- **Tailwind CSS 3.4.17** - Utility-first CSS framework
+- **Radix UI** - Accessible component primitives
+- **Lucide React** - Icon library
+- **React Hook Form 7.61.1** - Form state management
+- **Zod 3.25.76** - Schema validation
+
+### Real-time Communication
+
+- **SockJS Client 1.6.1** - WebSocket fallback support
+- **StompJS 2.3.3** - STOMP protocol for WebSocket messaging
+
+## Project Structure
+
+The application follows a modular, feature-based architecture:
+
+```
+src/
+├── pages/              # Route-level page components
+│   ├── Login.tsx       # Authentication page
+│   ├── Dashboard.tsx   # Main dashboard view
+│   ├── PanelDeAlertas.tsx  # Alerts management
+│   ├── Estadisticas.tsx    # Statistics and analytics
+│   └── NotFound.tsx    # 404 error page
+├── components/         # Reusable UI components
+│   ├── ui/            # shadcn/ui components
+│   ├── Sidebar.tsx    # Navigation sidebar
+│   └── NotificationBell.tsx  # Real-time notifications
+├── hooks/             # Custom React hooks
+│   ├── use-graphql.ts           # GraphQL API integration
+│   ├── use-websocket-notifications.ts  # WebSocket hook
+│   ├── use-toast.ts             # Toast notifications
+│   └── use-mobile.tsx           # Mobile detection
+├── lib/               # Utility functions
+│   └── utils.ts       # Helper utilities (clsx, cn)
+├── assets/            # Static assets (images, fonts)
+├── App.tsx            # Root application component
+├── main.tsx           # Application entry point
+└── index.css          # Global styles
+```
+
+<Note>
+The `@/` path alias is configured to point to the `src/` directory, enabling clean imports like `import { Button } from "@/components/ui/button"`.
+</Note>
+
+## Application Architecture
+
+### Routing Layer
+
+The application uses React Router DOM for client-side routing. All routes are defined centrally in `App.tsx:20-26`:
+
+```tsx
+<BrowserRouter>
+  <Routes>
+    <Route path="/" element={<Login />} />
+    <Route path="/dashboard" element={<Dashboard />} />
+    <Route path="/panel-de-alertas" element={<PanelDeAlertas />} />
+    <Route path="/estadisticas" element={<Estadisticas />} />
+    <Route path="*" element={<NotFound />} />
+  </Routes>
+</BrowserRouter>
+```
+
+### State Management
+
+<Tabs>
+  <Tab title="Server State">
+    **TanStack Query** (`App.tsx:4,12,15`) manages all server state, data fetching, caching, and synchronization:
+
+    ```tsx
+    const queryClient = new QueryClient();
+
+    <QueryClientProvider client={queryClient}>
+      {/* Application */}
+    </QueryClientProvider>
+    ```
+
+    Benefits:
+    - Automatic background refetching
+    - Request deduplication
+    - Built-in caching strategies
+    - Optimistic updates support
+  </Tab>
+  
+  <Tab title="Local State">
+    **React Hooks** manage component-level state:
+    - `useState` for component state
+    - `useRef` for mutable references
+    - Custom hooks for shared logic
+  </Tab>
+
+  <Tab title="Authentication State">
+    JWT tokens are stored in browser storage:
+    - `localStorage` for "Remember me" persistence
+    - `sessionStorage` for session-only auth
+    
+    See `use-graphql.ts:18` for implementation details.
+  </Tab>
+</Tabs>
+
+## API Integration Layer
+
+### GraphQL Communication
+
+The `useGraphQL` hook (`hooks/use-graphql.ts`) provides a standardized interface for GraphQL API calls:
+
+<Steps>
+  <Step title="Authentication">
+    Automatically includes JWT token from storage in all requests (`use-graphql.ts:18`)
+  </Step>
+  
+  <Step title="Request Execution">
+    Sends POST requests to `/api` endpoint with GraphQL query and variables (`use-graphql.ts:25-32`)
+  </Step>
+  
+  <Step title="Error Handling">
+    Handles 401/403 responses by clearing auth tokens and redirecting to login (`use-graphql.ts:34-39`)
+  </Step>
+  
+  <Step title="Response Processing">
+    Parses GraphQL response and extracts data or throws errors (`use-graphql.ts:41-51`)
+  </Step>
+</Steps>
+
+**Example Usage:**
+
+```tsx
+const { fetchGraphQL } = useGraphQL();
+
+const data = await fetchGraphQL<ResponseType>(
+  '/graphql',
+  `query { alerts { id, type, priority } }`,
+  { limit: 10 }
+);
+```
+
+### WebSocket Integration
+
+Real-time notifications are handled via WebSocket using the `useWebSocketNotifications` hook (`hooks/use-websocket-notifications.ts`):
+
+**Architecture:**
+- **SockJS** (`use-websocket-notifications.ts:35`) - Provides WebSocket with fallback transports
+- **STOMP** (`use-websocket-notifications.ts:36`) - Messaging protocol over WebSocket
+- **Auto-reconnect** (`use-websocket-notifications.ts:73-76`) - Automatic reconnection on disconnect
+
+**Connection Flow:**
+
+```tsx
+// 1. Initialize WebSocket connection
+const socket = new SockJS("/notifications/ws-alerts");
+const stompClient = Stomp.over(socket);
+
+// 2. Subscribe to alerts channel
+stompClient.subscribe("/all/alerts", (message) => {
+  const alert = JSON.parse(message.body);
+  // Handle notification
+});
+```
+
+<Note>
+The WebSocket connection uses relative paths (`/notifications/ws-alerts`) to work seamlessly with both development proxy and production Vercel rewrites.
+</Note>
+
+## Authentication Flow
+
+<Steps>
+  <Step title="Login">
+    User enters credentials on `/` (Login page)
+  </Step>
+  
+  <Step title="Token Storage">
+    JWT token is stored in localStorage or sessionStorage based on "Remember me" option
+  </Step>
+  
+  <Step title="Protected Navigation">
+    User navigates to protected routes (`/dashboard`, `/panel-de-alertas`, `/estadisticas`)
+  </Step>
+  
+  <Step title="Token Validation">
+    Each API request includes the token via `useGraphQL` hook
+  </Step>
+  
+  <Step title="Session Expiry">
+    If token is invalid (401/403), user is redirected to login and tokens are cleared
+  </Step>
+</Steps>
+
+## Component Organization
+
+### UI Components
+
+All UI components follow the **shadcn/ui** pattern:
+- Located in `components/ui/`
+- Built on Radix UI primitives
+- Fully styled with Tailwind CSS
+- Accessible by default (ARIA compliant)
+
+### Custom Components
+
+<CardGroup cols={2}>
+  <Card title="Sidebar" icon="bars">
+    Navigation component for main app navigation
+    
+    **Location:** `components/Sidebar.tsx`
+  </Card>
+  
+  <Card title="NotificationBell" icon="bell">
+    Real-time notification display using WebSocket
+    
+    **Location:** `components/NotificationBell.tsx`
+  </Card>
+</CardGroup>
+
+### Page Components
+
+Pages are route-level components that:
+- Compose UI components
+- Manage page-specific state
+- Handle data fetching
+- Implement business logic
+
+## Configuration Files
+
+### TypeScript Configuration
+
+The project uses a multi-file TypeScript configuration:
+
+<Tabs>
+  <Tab title="tsconfig.json">
+    **Root configuration** - References app and node configs
+    
+    Key settings:
+    - Path aliases: `@/*` → `./src/*`
+    - Relaxed type checking for rapid development
+  </Tab>
+  
+  <Tab title="tsconfig.app.json">
+    **Application TypeScript config**
+    
+    Target: ES2020, React JSX, bundler module resolution
+  </Tab>
+  
+  <Tab title="tsconfig.node.json">
+    **Node/Build tools config**
+    
+    For Vite config and build scripts (ES2022, strict mode)
+  </Tab>
+</Tabs>
+
+### ESLint Configuration
+
+`eslint.config.js` provides code quality enforcement:
+
+- **React Hooks rules** - Enforces hooks best practices
+- **React Refresh** - Warns about non-refreshable exports
+- **TypeScript ESLint** - TypeScript-specific linting
+- Disabled: unused variables (development convenience)
+
+### Tailwind Configuration
+
+`tailwind.config.ts` defines the design system:
+
+<CodeGroup>
+```typescript Custom Theme
+theme: {
+  extend: {
+    colors: {
+      // shadcn/ui semantic colors
+      background: "hsl(var(--background))",
+      foreground: "hsl(var(--foreground))",
+      primary: { ... },
+      
+      // FleetGuard360 brand colors
+      "dark-blue": "hsl(var(--dark-blue))",
+      "aqua-green": "hsl(var(--aqua-green))",
+      "purple-brand": "hsl(var(--purple-brand))",
+      
+      // Alert priority colors
+      "priority-critical": "hsl(var(--priority-critical))",
+      "priority-high": "hsl(var(--priority-high))",
+      "priority-medium": "hsl(var(--priority-medium))",
+    }
+  }
+}
+```
+
+```typescript Plugins
+plugins: [
+  require("tailwindcss-animate"),
+  require("@tailwindcss/typography")
+]
+```
+</CodeGroup>
+
+## Development Workflow
+
+### Hot Module Replacement (HMR)
+
+Vite provides instant HMR powered by:
+- **@vitejs/plugin-react-swc** - Ultra-fast React refresh using SWC compiler
+- **Component Tagger** (dev mode) - Adds metadata for debugging
+
+### Development Server
+
+Configured in `vite.config.ts:8-28`:
+
+```typescript
+server: {
+  host: "::",        // IPv6 support
+  port: 3000,
+  proxy: {
+    "/api": {        // GraphQL API proxy
+      target: "http://fleetguard-api.ddns.net",
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/api/, "")
+    },
+    "/notifications": {  // WebSocket proxy
+      target: "http://fleetguard-api.ddns.net",
+      changeOrigin: true,
+      ws: true           // Enable WebSocket proxying
+    }
+  }
+}
+```
+
+<Warning>
+The proxy configuration is only active during development (`npm run dev`). Production uses Vercel rewrites defined in `vercel.json`.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Component Design">
+    - Keep components small and focused
+    - Use composition over inheritance
+    - Leverage shadcn/ui components as building blocks
+    - Extract reusable logic into custom hooks
+  </Accordion>
+  
+  <Accordion title="State Management">
+    - Use TanStack Query for all server data
+    - Keep component state local when possible
+    - Lift state only when necessary
+    - Avoid prop drilling with context when appropriate
+  </Accordion>
+  
+  <Accordion title="TypeScript Usage">
+    - Define interfaces for API responses
+    - Use type inference when possible
+    - Leverage path aliases for clean imports
+    - Type custom hooks return values
+  </Accordion>
+  
+  <Accordion title="Performance">
+    - Lazy load routes with React.lazy()
+    - Memoize expensive calculations
+    - Use React.memo() for pure components
+    - Optimize WebSocket subscriptions
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Development Setup" icon="wrench" href="/development/setup">
+    Set up your local development environment
+  </Card>
+  
+  <Card title="Build & Deploy" icon="rocket" href="/development/build-deploy">
+    Learn how to build and deploy the application
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the GraphQL API documentation
+  </Card>
+  
+  <Card title="Components" icon="puzzle-piece" href="/components">
+    Browse available UI components
+  </Card>
+</CardGroup>

@@ -1,0 +1,510 @@
+---
+title: Installation Guide
+description: Complete installation instructions for FleetGuard360, including prerequisites, environment configuration, and deployment
+---
+
+## Prerequisites
+
+Before installing FleetGuard360, ensure your system meets these requirements:
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js">
+    **Version 16.x or higher**
+    
+    Check your version:
+    ```bash
+    node --version
+    ```
+  </Card>
+  
+  <Card title="Package Manager" icon="box">
+    One of: **npm**, **yarn**, **pnpm**, or **bun**
+    
+    npm comes bundled with Node.js
+  </Card>
+  
+  <Card title="Git" icon="git">
+    **Version 2.x or higher**
+    
+    Required for cloning the repository
+  </Card>
+  
+  <Card title="Modern Browser" icon="browser">
+    Chrome, Firefox, Safari, or Edge
+    
+    For development and testing
+  </Card>
+</CardGroup>
+
+<Note>
+  FleetGuard360 uses Vite 5.4, which requires Node.js 16+ for optimal performance.
+</Note>
+
+## Installation Steps
+
+Follow these steps to install FleetGuard360 on your local machine.
+
+<Steps>
+
+### Clone the Repository
+
+Clone the FleetGuard360 frontend repository:
+
+```bash
+git clone https://github.com/CodeFactory-FleetGuard360-EV04/Frontend.git
+cd Frontend
+```
+
+The repository structure:
+
+```
+Frontend/
+├── src/
+│   ├── components/     # Reusable UI components
+│   ├── pages/         # Route components
+│   ├── hooks/         # Custom React hooks
+│   ├── lib/           # Utility functions
+│   └── assets/        # Images and static files
+├── public/            # Public static assets
+├── package.json       # Dependencies and scripts
+├── vite.config.ts     # Vite configuration
+├── tsconfig.json      # TypeScript configuration
+├── tailwind.config.js # Tailwind CSS configuration
+└── vercel.json        # Vercel deployment config
+```
+
+### Install Dependencies
+
+Install all required dependencies using your preferred package manager:
+
+<CodeGroup>
+```bash npm
+npm install
+```
+
+```bash yarn
+yarn install
+```
+
+```bash pnpm
+pnpm install
+```
+
+```bash bun
+bun install
+```
+</CodeGroup>
+
+This installs all dependencies from `package.json`, including:
+
+**Core Dependencies:**
+- `react@^18.3.1` - React framework
+- `react-dom@^18.3.1` - React DOM rendering
+- `react-router-dom@^6.30.1` - Client-side routing
+- `typescript@^5.8.3` - TypeScript language support
+
+**UI Libraries:**
+- `@radix-ui/react-*` - Accessible component primitives
+- `lucide-react@^0.462.0` - Icon library
+- `tailwindcss@^3.4.17` - Utility-first CSS
+- `shadcn-ui` - Component system
+
+**Data & State Management:**
+- `@tanstack/react-query@^5.83.0` - Server state management
+- `react-hook-form@^7.61.1` - Form handling
+- `zod@^3.25.76` - Schema validation
+
+**Real-Time Communication:**
+- `sockjs-client@^1.6.1` - WebSocket client
+- `stompjs@^2.3.3` - STOMP protocol
+
+**Visualization:**
+- `recharts@^2.15.4` - Chart library
+
+<Note>
+  The full dependency list is available in `package.json`. Installation typically takes 1-3 minutes depending on your internet connection.
+</Note>
+
+### Configure Environment
+
+FleetGuard360 uses Vite's configuration file for environment setup. The proxy configuration is already set up in `vite.config.ts`:
+
+<CodeGroup>
+```typescript vite.config.ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react-swc";
+import path from "path";
+
+export default defineConfig(({ mode }) => ({
+  server: {
+    host: "::",
+    port: 3000,
+    proxy: {
+      "/api": {
+        target: "http://fleetguard-api.ddns.net",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ""),
+        configure: (proxy, _options) => {
+          proxy.on("proxyReq", (proxyReq, _req, _res) => {
+            proxyReq.setHeader("Origin", "http://fleetguard-api.ddns.net");
+          });
+        },
+      },
+      "/notifications": {
+        target: "http://fleetguard-api.ddns.net",
+        changeOrigin: true,
+        ws: true, // Enable WebSocket proxy
+        secure: false,
+      },
+    },
+  },
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+}));
+```
+</CodeGroup>
+
+**Key Configuration Points:**
+
+- **Host**: `::` - Listens on all network interfaces (IPv6)
+- **Port**: `3000` - Development server port
+- **API Proxy**: `/api/*` routes to `http://fleetguard-api.ddns.net`
+- **WebSocket Proxy**: `/notifications/*` routes with WebSocket support
+- **Path Alias**: `@` resolves to `./src`
+
+<Warning>
+  The backend API URL is hardcoded to `http://fleetguard-api.ddns.net`. Update this if your backend is hosted elsewhere.
+</Warning>
+
+### Start Development Server
+
+Run the development server:
+
+<CodeGroup>
+```bash npm
+npm run dev
+```
+
+```bash yarn
+yarn dev
+```
+
+```bash pnpm
+pnpm dev
+```
+
+```bash bun
+bun run dev
+```
+</CodeGroup>
+
+You should see output similar to:
+
+```bash
+  VITE v5.4.19  ready in 1247 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: http://192.168.1.100:3000/
+  ➜  press h to show help
+```
+
+The application is now running at `http://localhost:3000`.
+
+</Steps>
+
+## Build Modes
+
+FleetGuard360 supports different build modes for various deployment scenarios.
+
+### Development Build
+
+Create a development build with source maps and debugging:
+
+<CodeGroup>
+```bash npm
+npm run build:dev
+```
+
+```bash yarn
+yarn build:dev
+```
+
+```bash pnpm
+pnpm build:dev
+```
+
+```bash bun
+bun run build:dev
+```
+</CodeGroup>
+
+This runs `vite build --mode development` and creates an unoptimized build in the `dist/` directory.
+
+### Production Build
+
+Create an optimized production build:
+
+<CodeGroup>
+```bash npm
+npm run build
+```
+
+```bash yarn
+yarn build
+```
+
+```bash pnpm
+pnpm build
+```
+
+```bash bun
+bun run build
+```
+</CodeGroup>
+
+Production builds include:
+
+- **Minification**: JavaScript and CSS minification
+- **Tree Shaking**: Removal of unused code
+- **Code Splitting**: Optimized chunk splitting
+- **Asset Optimization**: Image and font optimization
+
+<Note>
+  Production builds are placed in the `dist/` directory and are ready for deployment.
+</Note>
+
+### Preview Production Build
+
+Test the production build locally before deploying:
+
+<CodeGroup>
+```bash npm
+npm run preview
+```
+
+```bash yarn
+yarn preview
+```
+
+```bash pnpm
+pnpm preview
+```
+
+```bash bun
+bun run preview
+```
+</CodeGroup>
+
+This starts a local server to preview the production build at `http://localhost:4173`.
+
+## Vercel Deployment Configuration
+
+FleetGuard360 includes a production-ready Vercel deployment configuration:
+
+<CodeGroup>
+```json vercel.json
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://fleetguard-api.ddns.net/:path*"
+    },
+    {
+      "source": "/notifications/:path*",
+      "destination": "http://fleetguard-api.ddns.net/notifications/:path*"
+    }
+  ]
+}
+```
+</CodeGroup>
+
+**Deployment Steps:**
+
+<Steps>
+
+### Install Vercel CLI
+
+```bash
+npm install -g vercel
+```
+
+### Deploy to Vercel
+
+From the project directory:
+
+```bash
+vercel
+```
+
+Follow the prompts to:
+1. Link to your Vercel account
+2. Configure project settings
+3. Deploy the application
+
+### Production Deployment
+
+Deploy to production:
+
+```bash
+vercel --prod
+```
+
+</Steps>
+
+<Warning>
+  Vercel's free tier has limitations on serverless function execution time. WebSocket connections may require an upgraded plan.
+</Warning>
+
+## Environment Variables
+
+While FleetGuard360 doesn't use a `.env` file by default, you can add environment variables for customization:
+
+```bash .env.local
+# Backend API URL (optional - defaults to proxy)
+VITE_API_URL=http://fleetguard-api.ddns.net
+
+# WebSocket URL (optional)
+VITE_WS_URL=http://fleetguard-api.ddns.net/notifications
+
+# Application Mode
+VITE_APP_MODE=production
+```
+
+<Note>
+  Vite requires environment variables to be prefixed with `VITE_` to be exposed to the client.
+</Note>
+
+## Troubleshooting Installation Issues
+
+<AccordionGroup>
+  <Accordion title="npm install fails with ERESOLVE errors">
+    This usually indicates dependency conflicts. Try:
+    
+    ```bash
+    npm install --legacy-peer-deps
+    ```
+    
+    Or use the `--force` flag (use with caution):
+    
+    ```bash
+    npm install --force
+    ```
+  </Accordion>
+  
+  <Accordion title="TypeScript errors during build">
+    Ensure you're using TypeScript 5.8.3 or compatible:
+    
+    ```bash
+    npm install typescript@^5.8.3 --save-dev
+    ```
+    
+    Then rebuild:
+    
+    ```bash
+    npm run build
+    ```
+  </Accordion>
+  
+  <Accordion title="Vite dev server not starting">
+    Common causes:
+    
+    1. **Port already in use**: Change the port in `vite.config.ts`
+    2. **Permission issues**: Run with appropriate permissions
+    3. **Node version**: Ensure Node.js 16+ is installed
+    
+    Check for errors in the terminal output.
+  </Accordion>
+  
+  <Accordion title="Proxy requests failing (401/403/CORS)">
+    If API requests fail:
+    
+    1. **Verify backend is running**: `curl http://fleetguard-api.ddns.net`
+    2. **Check proxy config**: Review `vite.config.ts` proxy settings
+    3. **CORS headers**: Ensure backend allows the origin
+    4. **JWT token**: Verify token is stored correctly in browser storage
+    
+    Check browser DevTools Network tab for detailed error messages.
+  </Accordion>
+  
+  <Accordion title="WebSocket connection refused">
+    WebSocket issues are often related to:
+    
+    1. **Backend not supporting WebSocket**: Verify STOMP endpoint
+    2. **Proxy misconfiguration**: Check `ws: true` in proxy config
+    3. **Firewall blocking**: Ensure WebSocket traffic is allowed
+    4. **Protocol mismatch**: Verify SockJS compatibility
+    
+    Check browser console for WebSocket error logs.
+  </Accordion>
+  
+  <Accordion title="Build size too large">
+    If your production build is larger than expected:
+    
+    1. **Analyze bundle**: Use `vite-plugin-visualizer`
+    2. **Remove unused dependencies**: Check for unnecessary imports
+    3. **Lazy load routes**: Implement code splitting
+    4. **Optimize images**: Compress assets before importing
+    
+    Run the build with analysis:
+    
+    ```bash
+    npm run build -- --mode analyze
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that FleetGuard360 is installed, explore these topics:
+
+<CardGroup cols={2}>
+  <Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+    Get up and running with your first login
+  </Card>
+  
+  <Card title="Development Guide" icon="code" href="/development">
+    Learn about the codebase structure and development workflow
+  </Card>
+  
+  <Card title="Authentication" icon="key" href="/features/authentication">
+    Understand JWT authentication and session management
+  </Card>
+  
+  <Card title="Deployment" icon="cloud-arrow-up" href="/development/build-deploy">
+    Deploy FleetGuard360 to production environments
+  </Card>
+</CardGroup>
+
+## Available Scripts
+
+Here's a complete reference of all npm scripts defined in `package.json`:
+
+<CodeGroup>
+```json package.json
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:dev": "vite build --mode development",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  }
+}
+```
+</CodeGroup>
+
+| Script | Command | Description |
+|--------|---------|-------------|
+| `dev` | `npm run dev` | Start development server on port 3000 |
+| `build` | `npm run build` | Create optimized production build |
+| `build:dev` | `npm run build:dev` | Create development build with source maps |
+| `lint` | `npm run lint` | Run ESLint to check code quality |
+| `preview` | `npm run preview` | Preview production build locally |
+
+<Note>
+  All scripts support the `--` separator to pass additional flags, e.g., `npm run dev -- --port 3001`.
+</Note>

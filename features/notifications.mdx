@@ -1,0 +1,421 @@
+---
+title: 'Real-time Notifications'
+description: 'WebSocket-based real-time alert notifications with toast messages and notification bell'
+icon: 'bell'
+---
+
+## Overview
+
+FleetGuard360 implements a real-time notification system using WebSocket connections via STOMP protocol over SockJS. The NotificationBell component (`src/components/NotificationBell.tsx`) provides instant alerts when new events occur in the fleet.
+
+## Notification Architecture
+
+<CardGroup cols={2}>
+  <Card title="WebSocket Connection" icon="plug">
+    Persistent connection using SockJS and STOMP for real-time messaging
+  </Card>
+  
+  <Card title="Notification Bell" icon="bell">
+    Visual indicator with unread count badge in the application header
+  </Card>
+  
+  <Card title="Toast Notifications" icon="message">
+    Popup notifications for incoming alerts with priority-based styling
+  </Card>
+  
+  <Card title="Connection Status" icon="signal">
+    Real-time indicator showing connection state (connected/reconnecting)
+  </Card>
+</CardGroup>
+
+## WebSocket Hook
+
+The `useWebSocketNotifications` hook (`src/hooks/use-websocket-notifications.ts`) manages the WebSocket connection lifecycle:
+
+### Connection Initialization
+
+```typescript use-websocket-notifications.ts:32-85
+const connect = () => {
+  try {
+    // Usar ruta relativa para que funcione con el proxy de Vercel
+    const socket = new SockJS("/notifications/ws-alerts");
+    const stompClient = Stomp.over(socket);
+
+    // Desactivar logs de debug (opcional)
+    stompClient.debug = () => {};
+
+    stompClient.connect(
+      {},
+      (frame: any) => {
+        console.log("WebSocket conectado:", frame);
+        setIsConnected(true);
+
+        // Suscribirse al canal de alertas
+        stompClient.subscribe("/all/alerts", (message) => {
+          try {
+            const alert: AlertNotification = JSON.parse(message.body);
+            setNotifications((prev) => [alert, ...prev]);
+
+            if (onNotification) {
+              onNotification(alert);
+            }
+          } catch (error) {
+            console.error("Error procesando notificación:", error);
+          }
+        });
+      },
+      (error: unknown) => {
+        console.error("Error en WebSocket:", error);
+        setIsConnected(false);
+
+        // Intentar reconectar después de 5 segundos
+        setTimeout(() => {
+          console.log("Intentando reconectar...");
+          connect();
+        }, 5000);
+      }
+    );
+
+    stompClientRef.current = stompClient;
+  } catch (error) {
+    console.error("Error al conectar WebSocket:", error);
+    setIsConnected(false);
+  }
+};
+```
+
+<Note>
+  The hook uses SockJS for WebSocket fallback compatibility and STOMP for message protocol. If the connection fails, it automatically attempts to reconnect after 5 seconds.
+</Note>
+
+## Notification Data Structure
+
+Incoming notifications follow this interface:
+
+```typescript use-websocket-notifications.ts:5-16
+export interface AlertNotification {
+  id?: string;
+  alertType: string;
+  responsible?: string;
+  priority?: string;
+  driver?: string;
+  generatingUnit: string;
+  state?: string;
+  statusAlert?: string;
+  generationDate: string;
+  message?: string;
+}
+```
+
+<ParamField path="alertType" type="string" required>
+  Type of alert (e.g., "Exceso de velocidad", "Frenado brusco")
+</ParamField>
+
+<ParamField path="generatingUnit" type="string" required>
+  Vehicle or unit identifier that generated the alert
+</ParamField>
+
+<ParamField path="generationDate" type="string" required>
+  ISO 8601 timestamp when the alert was created
+</ParamField>
+
+<ParamField path="priority" type="string">
+  Alert priority level (Alta, Media, Baja)
+</ParamField>
+
+<ParamField path="driver" type="string">
+  Driver name associated with the alert
+</ParamField>
+
+<ParamField path="responsible" type="string">
+  Area or person responsible for handling the alert
+</ParamField>
+
+<ParamField path="state" type="string">
+  Current alert status (En espera, En proceso, Resuelto)
+</ParamField>
+
+## Notification Bell Component
+
+The bell icon appears in the application header with a badge showing unread count:
+
+```tsx NotificationBell.tsx:58-74
+<PopoverTrigger asChild>
+  <Button
+    variant="ghost"
+    size="icon"
+    className="relative text-white hover:bg-white/10 h-10 w-10"
+  >
+    <Bell className="h-5 w-5" />
+    {unreadCount > 0 && (
+      <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-600 text-white text-xs">
+        {unreadCount > 9 ? "9+" : unreadCount}
+      </Badge>
+    )}
+    {/* Indicador de conexión: verde si conectado, rojo si desconectado */}
+    <span className={`absolute bottom-0 right-0 h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+  </Button>
+</PopoverTrigger>
+```
+
+### Visual Indicators
+
+<Tabs>
+  <Tab title="Unread Badge">
+    Displays the number of unread notifications (shows "9+" if more than 9)
+    - **Position**: Top-right of bell icon
+    - **Color**: Red background (#dc2626)
+    - **Visibility**: Only shown when unread count > 0
+  </Tab>
+  
+  <Tab title="Connection Status">
+    Small dot indicating WebSocket connection state
+    - **Green**: Connected and receiving real-time updates
+    - **Red**: Disconnected or reconnecting
+    - **Position**: Bottom-right of bell icon
+  </Tab>
+</Tabs>
+
+## Toast Notifications
+
+When a new alert arrives, a toast notification appears:
+
+```tsx NotificationBell.tsx:19-27
+const { notifications, isConnected, clearNotifications } = useWebSocketNotifications({
+  onNotification: (notification) => {
+    // Mostrar toast cuando llegue una notificación
+    toast({
+      title: "Nueva Alerta",
+      description: `${notification.alertType} - ${notification.generatingUnit}`,
+      variant: notification.priority?.toLowerCase().includes("alta") ? "destructive" : "default",
+    });
+  },
+});
+```
+
+<Warning>
+  High-priority alerts ("Alta") automatically use the destructive (red) variant to draw immediate attention.
+</Warning>
+
+## Notification Popover
+
+Clicking the bell icon opens a popover with the notification list:
+
+```tsx NotificationBell.tsx:75-148
+<PopoverContent className="w-80 bg-[#141C2F] border-gray-700 p-0" align="end">
+  <div className="flex items-center justify-between p-4 border-b border-gray-700">
+    <h3 className="font-semibold text-white">Notificaciones</h3>
+    {unreadCount > 0 && (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={clearNotifications}
+        className="text-xs text-gray-400 hover:text-white"
+      >
+        Limpiar
+      </Button>
+    )}
+  </div>
+
+  <ScrollArea className="h-[400px]">
+    {notifications.length === 0 ? (
+      <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+        <Bell className="h-12 w-12 mb-2 opacity-50" />
+        <p className="text-sm">No hay notificaciones</p>
+      </div>
+    ) : (
+      <div className="divide-y divide-gray-700">
+        {notifications.map((notification, index) => (
+          <div key={`${notification.id || index}`} className="p-4 hover:bg-white/5 transition-colors">
+            {/* Notification details */}
+          </div>
+        ))}
+      </div>
+    )}
+  </ScrollArea>
+
+  <div className="p-3 border-t border-gray-700 bg-[#0A2846]">
+    <div className="flex items-center gap-2 text-xs text-gray-400">
+      <div className={`h-2 w-2 rounded-full ${isConnected ? "bg-green-500" : "bg-yellow-500"}`} />
+      <span>{isConnected ? "Conectado" : "Reconectando..."}</span>
+    </div>
+  </div>
+</PopoverContent>
+```
+
+## Notification Display Format
+
+Each notification in the popover shows:
+
+```tsx NotificationBell.tsx:99-137
+<div className="flex items-start justify-between gap-3">
+  <div className="flex-1 min-w-0">
+    <h4 className="text-sm font-medium text-white mb-2">
+      {notification.alertType}
+    </h4>
+    <p className="text-xs text-gray-400 mb-1">
+      📍 {notification.generatingUnit}
+    </p>
+    {notification.driver && (
+      <p className="text-xs text-gray-400 mb-1">
+        👤 Conductor: {notification.driver}
+      </p>
+    )}
+    {notification.responsible && (
+      <p className="text-xs text-gray-400 mb-1">
+        👨‍💼 Responsable: {notification.responsible}
+      </p>
+    )}
+    {(notification.statusAlert || notification.state) && (
+      <p className="text-xs text-gray-400 mt-2">
+        ⚡ Estado: {notification.statusAlert || notification.state}
+      </p>
+    )}
+    <p className="text-xs text-gray-500 mt-2">
+      🕐 {formatDate(notification.generationDate)}
+    </p>
+  </div>
+  {notification.priority && (
+    <Badge className={`${getPriorityColor(notification.priority)} text-xs px-2 py-1 h-fit whitespace-nowrap`}>
+      {notification.priority}
+    </Badge>
+  )}
+</div>
+```
+
+## Relative Time Formatting
+
+Notification timestamps are displayed as relative time:
+
+```tsx NotificationBell.tsx:31-47
+const formatDate = (isoDate: string) => {
+  try {
+    const date = new Date(isoDate);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return "Ahora";
+    if (minutes < 60) return `Hace ${minutes}m`;
+    if (hours < 24) return `Hace ${hours}h`;
+    return `Hace ${days}d`;
+  } catch {
+    return "";
+  }
+};
+```
+
+**Examples:**
+- Just arrived: "Ahora"
+- 15 minutes ago: "Hace 15m"
+- 3 hours ago: "Hace 3h"
+- 2 days ago: "Hace 2d"
+
+## Priority Color Coding
+
+Notification priorities are color-coded for quick identification:
+
+```tsx NotificationBell.tsx:49-55
+const getPriorityColor = (priority: string) => {
+  const prioridadLower = priority?.toLowerCase() || "";
+  if (prioridadLower.includes("alta")) return "bg-red-600 text-white";
+  if (prioridadLower.includes("media")) return "bg-yellow-500 text-gray-900";
+  if (prioridadLower.includes("baja")) return "bg-green-600 text-white";
+  return "bg-gray-500 text-white";
+};
+```
+
+<CardGroup cols={3}>
+  <Card title="Alta (High)" icon="circle" color="#dc2626">
+    Red badge - Critical priority
+  </Card>
+  
+  <Card title="Media (Medium)" icon="circle" color="#eab308">
+    Yellow badge - Medium priority
+  </Card>
+  
+  <Card title="Baja (Low)" icon="circle" color="#16a34a">
+    Green badge - Low priority
+  </Card>
+</CardGroup>
+
+## Clear Notifications
+
+Users can clear all notifications with a single click:
+
+```tsx NotificationBell.tsx:78-87
+{unreadCount > 0 && (
+  <Button
+    variant="ghost"
+    size="sm"
+    onClick={clearNotifications}
+    className="text-xs text-gray-400 hover:text-white"
+  >
+    Limpiar
+  </Button>
+)}
+```
+
+The hook provides the clear function:
+
+```typescript use-websocket-notifications.ts:96-98
+const clearNotifications = () => {
+  setNotifications([]);
+};
+```
+
+## Automatic Reconnection
+
+If the WebSocket connection drops, the system automatically attempts to reconnect:
+
+```typescript use-websocket-notifications.ts:68-77
+(error: unknown) => {
+  console.error("Error en WebSocket:", error);
+  setIsConnected(false);
+
+  // Intentar reconectar después de 5 segundos
+  setTimeout(() => {
+    console.log("Intentando reconectar...");
+    connect();
+  }, 5000);
+}
+```
+
+<Note>
+  During reconnection attempts, the connection status indicator shows red and the footer displays "Reconectando..."
+</Note>
+
+## Connection Lifecycle
+
+The hook manages the WebSocket lifecycle with React hooks:
+
+```typescript use-websocket-notifications.ts:100-109
+useEffect(() => {
+  if (autoConnect) {
+    connect();
+  }
+
+  return () => {
+    disconnect();
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+```
+
+The connection is established when the component mounts and automatically cleaned up when unmounting.
+
+## WebSocket Endpoint
+
+Notifications are received through the WebSocket endpoint:
+
+- **Endpoint**: `/notifications/ws-alerts`
+- **Protocol**: STOMP over SockJS
+- **Channel**: `/all/alerts`
+
+```typescript
+const socket = new SockJS("/notifications/ws-alerts");
+const stompClient = Stomp.over(socket);
+stompClient.subscribe("/all/alerts", (message) => { /* ... */ });
+```

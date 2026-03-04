@@ -1,0 +1,373 @@
+---
+title: 'Alerts API'
+description: 'Query and retrieve alert history data'
+---
+
+## Overview
+
+The Alerts API provides access to the alert history panel, allowing you to retrieve all generated alerts with details about their type, responsible party, priority, and current state.
+
+<Note>
+  All alerts operations use the `/api/panel/graphql` endpoint.
+</Note>
+
+## Query: getAllAlerts
+
+Retrieve all alerts from the system history.
+
+### GraphQL Query
+
+From `~/workspace/source/src/pages/PanelDeAlertas.tsx:50-63`:
+
+```graphql
+query GetAllAlerts {
+  getAllAlerts {
+    id
+    alertType
+    responsible
+    priority
+    driver
+    generatingUnit
+    state
+    generationDate
+  }
+}
+```
+
+### Request
+
+<CodeGroup>
+```typescript TypeScript
+import { useGraphQL } from "@/hooks/use-graphql";
+
+const { fetchGraphQL } = useGraphQL();
+
+const query = `
+  query GetAllAlerts {
+    getAllAlerts {
+      id
+      alertType
+      responsible
+      priority
+      driver
+      generatingUnit
+      state
+      generationDate
+    }
+  }
+`;
+
+const result = await fetchGraphQL<{ getAllAlerts: AlertResponse[] }>(
+  "/panel/graphql",
+  query
+);
+```
+
+```javascript Fetch
+const token = localStorage.getItem("jwt_token");
+
+const response = await fetch('/api/panel/graphql', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify({
+    query: `
+      query GetAllAlerts {
+        getAllAlerts {
+          id
+          alertType
+          responsible
+          priority
+          driver
+          generatingUnit
+          state
+          generationDate
+        }
+      }
+    `
+  })
+});
+
+const data = await response.json();
+```
+</CodeGroup>
+
+### Response Fields
+
+<ResponseField name="getAllAlerts" type="array">
+  Array of alert objects
+  
+  <Expandable title="Alert Object">
+    <ResponseField name="id" type="string" required>
+      Unique identifier for the alert
+    </ResponseField>
+    
+    <ResponseField name="alertType" type="string" required>
+      Type of alert (e.g., "Exceso de velocidad", "Frenado brusco", "Entrada a geocerca")
+    </ResponseField>
+    
+    <ResponseField name="responsible" type="string" required>
+      Area or person responsible for handling the alert (e.g., "Área de monitoreo", "Mantenimiento")
+    </ResponseField>
+    
+    <ResponseField name="priority" type="string" required>
+      Priority level of the alert
+      
+      Possible values:
+      - `"Alta"` / `"High"` - Critical priority
+      - `"Media"` / `"Medium"` - Medium priority
+      - `"Baja"` / `"Low"` - Low priority
+    </ResponseField>
+    
+    <ResponseField name="driver" type="string" required>
+      Name of the driver associated with the alert
+    </ResponseField>
+    
+    <ResponseField name="generatingUnit" type="string" required>
+      Vehicle or unit identifier that generated the alert (e.g., "Camión-123", "Autobús-101")
+    </ResponseField>
+    
+    <ResponseField name="state" type="string" required>
+      Current state of the alert
+      
+      Possible values:
+      - `"En espera"` / `"Pending"` - Alert awaiting review
+      - `"En proceso"` / `"In Progress"` - Alert being handled
+      - `"Resuelto"` / `"Resolved"` - Alert has been resolved
+    </ResponseField>
+    
+    <ResponseField name="generationDate" type="string" required>
+      ISO 8601 timestamp when the alert was generated
+      
+      Example: `"2024-03-15T14:30:00Z"`
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Response Example
+
+```json
+{
+  "data": {
+    "getAllAlerts": [
+      {
+        "id": "1",
+        "alertType": "Exceso de velocidad",
+        "responsible": "Área de monitoreo",
+        "priority": "Alta",
+        "driver": "Carlos Sanchez",
+        "generatingUnit": "Camión-123",
+        "state": "En proceso",
+        "generationDate": "2024-03-15T14:30:00Z"
+      },
+      {
+        "id": "2",
+        "alertType": "Frenado brusco",
+        "responsible": "Mantenimiento",
+        "priority": "Media",
+        "driver": "Ana Gómez",
+        "generatingUnit": "Furgoneta-456",
+        "state": "Resuelto",
+        "generationDate": "2024-03-15T10:15:00Z"
+      }
+    ]
+  }
+}
+```
+
+## TypeScript Interfaces
+
+From `~/workspace/source/src/pages/PanelDeAlertas.tsx:14-34`:
+
+### AlertResponse
+
+Represents the raw GraphQL response:
+
+```typescript
+interface AlertResponse {
+  id: string;
+  alertType: string;
+  responsible: string;
+  priority: string;
+  driver: string;
+  generatingUnit: string;
+  state: string;
+  generationDate: string;
+}
+```
+
+### Alert
+
+Represents the transformed alert data used in the UI:
+
+```typescript
+interface Alert {
+  id: string;
+  tipo: string;           // Maps from alertType
+  responsable: string;    // Maps from responsible
+  prioridad: string;      // Maps from priority
+  unidad: string;         // Maps from generatingUnit
+  conductor: string;      // Maps from driver
+  generado: string;       // Maps from generationDate
+  estado: string;         // Maps from state
+}
+```
+
+## Data Transformation
+
+From `~/workspace/source/src/pages/PanelDeAlertas.tsx:70-79`:
+
+```typescript
+const transformedAlerts: Alert[] = result.getAllAlerts.map((alert) => ({
+  id: alert.id,
+  tipo: alert.alertType,
+  responsable: alert.responsible,
+  prioridad: alert.priority,
+  unidad: alert.generatingUnit,
+  conductor: alert.driver,
+  generado: alert.generationDate,
+  estado: alert.state,
+}));
+```
+
+## Client-Side Filtering
+
+The alerts panel supports filtering by multiple criteria:
+
+- **Type**: Filter by alert type (velocity, braking, geofence, etc.)
+- **Responsible**: Filter by responsible area or person
+- **Priority**: Filter by Alta, Media, or Baja
+- **Unit**: Filter by specific vehicle/unit
+- **Driver**: Filter by driver name
+- **State**: Filter by En espera, En proceso, or Resuelto
+- **Search**: Text search across all fields
+
+<Note>
+  Filtering is currently implemented client-side. The getAllAlerts query returns all alerts.
+</Note>
+
+## Date Formatting
+
+The `generationDate` field returns ISO 8601 timestamps. Format them for display:
+
+From `~/workspace/source/src/pages/PanelDeAlertas.tsx:114-128`:
+
+```typescript
+const formatDate = (isoDate: string) => {
+  const date = new Date(isoDate);
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
+};
+```
+
+Example output: `15/03/2024 14:30`
+
+## Priority Badge Styling
+
+From `~/workspace/source/src/pages/PanelDeAlertas.tsx:100-112`:
+
+```typescript
+const getPriorityColor = (prioridad: string) => {
+  const prioridadLower = prioridad.toLowerCase().trim();
+  
+  if (prioridadLower.includes("alta") || prioridadLower === "high") {
+    return "bg-red-600 text-white font-semibold";
+  }
+  if (prioridadLower.includes("media") || prioridadLower === "medium") {
+    return "bg-yellow-500 text-gray-900 font-semibold";
+  }
+  if (prioridadLower.includes("baja") || prioridadLower === "low") {
+    return "bg-green-600 text-white font-semibold";
+  }
+  return "bg-gray-500 text-white";
+};
+```
+
+## State Badge Styling
+
+From `~/workspace/source/src/pages/PanelDeAlertas.tsx:130-149`:
+
+```typescript
+const getEstadoColor = (estado: string) => {
+  const estadoLower = estado.toLowerCase().trim();
+  
+  if (estadoLower.includes("espera") || estadoLower === "pending") {
+    return "bg-yellow-500 text-gray-900 font-semibold";
+  }
+  if (estadoLower.includes("proceso") || estadoLower === "in progress") {
+    return "bg-blue-600 text-white font-semibold";
+  }
+  if (estadoLower.includes("resuelto") || estadoLower === "resolved") {
+    return "bg-green-600 text-white font-semibold";
+  }
+  
+  return "bg-gray-500 text-white";
+};
+```
+
+## Real-Time Updates
+
+The alert panel includes a refresh button to fetch the latest data:
+
+```typescript
+const handleRefresh = async () => {
+  await fetchAlerts();
+};
+```
+
+<Note>
+  Currently, alerts are not pushed in real-time. Use the refresh button to fetch updated data.
+</Note>
+
+## Error Handling
+
+From `~/workspace/source/src/pages/PanelDeAlertas.tsx:86-95`:
+
+```typescript
+try {
+  setIsLoading(true);
+  const result = await fetchGraphQL<{ getAllAlerts: AlertResponse[] }>(
+    "/panel/graphql",
+    query
+  );
+  setAlerts(transformedAlerts);
+} catch (error) {
+  console.error("Error fetching alerts:", error);
+  toast({
+    title: "Error",
+    description: "No se pudieron cargar las alertas del historial",
+    variant: "destructive",
+  });
+} finally {
+  setIsLoading(false);
+}
+```
+
+## Pagination
+
+<Warning>
+  The current implementation does not support pagination. All alerts are returned in a single response.
+</Warning>
+
+For large datasets, consider implementing:
+- Server-side pagination with `limit` and `offset` parameters
+- Cursor-based pagination
+- Virtual scrolling on the client side
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Alert Types" icon="list" href="/api/alert-types">
+    Configure alert types and priorities
+  </Card>
+  <Card title="Statistics" icon="chart-bar" href="/api/statistics">
+    Export alert data to CSV
+  </Card>
+</CardGroup>

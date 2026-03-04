@@ -1,0 +1,511 @@
+---
+title: 'Styling System'
+description: 'Tailwind CSS configuration, custom colors, and design system for FleetGuard360'
+icon: 'palette'
+---
+
+## Overview
+
+FleetGuard360 uses **Tailwind CSS** with custom configuration for consistent styling across the application. The design system includes custom color palettes, priority indicators, and responsive design utilities.
+
+## Tailwind Configuration
+
+The complete Tailwind configuration is defined in `tailwind.config.ts`:
+
+```tsx tailwind.config.ts
+import type { Config } from "tailwindcss";
+
+export default {
+  darkMode: ["class"],
+  content: [
+    "./pages/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./app/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}"
+  ],
+  prefix: "",
+  theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+        sidebar: {
+          DEFAULT: "hsl(var(--sidebar-background))",
+          foreground: "hsl(var(--sidebar-foreground))",
+          primary: "hsl(var(--sidebar-primary))",
+          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
+          accent: "hsl(var(--sidebar-accent))",
+          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
+          border: "hsl(var(--sidebar-border))",
+          ring: "hsl(var(--sidebar-ring))",
+        },
+        // Custom monitoring system colors
+        "dark-blue": "hsl(var(--dark-blue))",
+        "aqua-green": "hsl(var(--aqua-green))",
+        "purple-brand": "hsl(var(--purple-brand))",
+        "light-aqua": "hsl(var(--light-aqua))",
+        "gray-light": "hsl(var(--gray-light))",
+        "priority-critical": "hsl(var(--priority-critical))",
+        "priority-high": "hsl(var(--priority-high))",
+        "priority-medium": "hsl(var(--priority-medium))",
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      keyframes: {
+        "accordion-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+      },
+    },
+  },
+  plugins: [require("tailwindcss-animate")],
+} satisfies Config;
+```
+
+## Color System
+
+FleetGuard360 uses a comprehensive color system with CSS custom properties.
+
+### Base Colors
+
+<Tabs>
+  <Tab title="Semantic Colors">
+    These colors are mapped to CSS variables for easy theme switching:
+
+    - `background` - Main background color
+    - `foreground` - Main text color
+    - `primary` - Primary brand color
+    - `secondary` - Secondary accent color
+    - `destructive` - Error/danger color
+    - `muted` - Muted background and text
+    - `accent` - Accent highlights
+    - `border` - Border colors
+    - `input` - Input field borders
+    - `ring` - Focus ring colors
+  </Tab>
+  
+  <Tab title="Component Colors">
+    Specific component color schemes:
+
+    - `card` - Card backgrounds
+    - `popover` - Popover/dropdown backgrounds
+    - `sidebar` - Sidebar navigation colors with variants:
+      - `sidebar-primary`
+      - `sidebar-accent`
+      - `sidebar-border`
+      - `sidebar-ring`
+  </Tab>
+  
+  <Tab title="Custom Brand Colors">
+    FleetGuard360 custom color palette:
+
+    - `dark-blue` - Primary dark blue (`#0A2846`)
+    - `aqua-green` - Accent aqua/green
+    - `purple-brand` - Purple brand color
+    - `light-aqua` - Light aqua backgrounds
+    - `gray-light` - Light gray accents
+  </Tab>
+</Tabs>
+
+### Priority Colors
+
+Special colors for alert priority levels:
+
+```tsx
+const priorityColors = {
+  "priority-critical": "hsl(var(--priority-critical))", // Red for critical alerts
+  "priority-high": "hsl(var(--priority-high))",         // Orange/Yellow for high priority
+  "priority-medium": "hsl(var(--priority-medium))",     // Yellow for medium priority
+};
+```
+
+**Usage Example:**
+
+```tsx src/pages/Dashboard.tsx
+const getPriorityColor = (priorityId: number) => {
+  switch (priorityId) {
+    case 3: return "bg-priority-critical text-white";
+    case 2: return "bg-priority-medium text-white";
+    case 1: return "bg-aqua-green text-white";
+    default: return "bg-muted text-muted-foreground";
+  }
+};
+
+<Badge className={getPriorityColor(alert.priorityId)}>
+  {alert.priority}
+</Badge>
+```
+
+## CSS Custom Properties
+
+Colors are defined as CSS custom properties in `src/index.css`:
+
+```css
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  
+  --dark-blue: 207 70% 15%;        /* #0A2846 */
+  --aqua-green: 174 60% 51%;
+  --purple-brand: 270 50% 40%;
+  --light-aqua: 180 50% 90%;
+  
+  --priority-critical: 0 72% 51%;   /* Red */
+  --priority-high: 25 95% 53%;      /* Orange */
+  --priority-medium: 48 96% 53%;    /* Yellow */
+  
+  --radius: 0.5rem;
+}
+```
+
+<Note>
+  All HSL values are defined without `hsl()` wrapper to allow alpha channel modifications: `hsl(var(--color) / 0.5)` for 50% opacity.
+</Note>
+
+## Dark Mode Support
+
+FleetGuard360 uses class-based dark mode:
+
+```tsx tailwind.config.ts
+export default {
+  darkMode: ["class"],
+  // ...
+}
+```
+
+Dark mode colors can be defined in CSS:
+
+```css
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  /* ... */
+}
+```
+
+## Responsive Design
+
+### Breakpoints
+
+Tailwind's default breakpoints are used:
+
+- `sm`: 640px
+- `md`: 768px
+- `lg`: 1024px
+- `xl`: 1280px
+- `2xl`: 1400px (custom)
+
+### Container
+
+```tsx
+container: {
+  center: true,
+  padding: "2rem",
+  screens: {
+    "2xl": "1400px",
+  },
+}
+```
+
+### Responsive Usage
+
+```tsx
+<div className="fixed left-0 top-0 h-screen w-[240px] bg-[#0A2846]">
+  {/* Sidebar is fixed on all screens */}
+</div>
+
+<main className="ml-[240px] flex-1 p-6">
+  {/* Main content offset by sidebar width */}
+</main>
+```
+
+## Typography
+
+FleetGuard360 uses the **Inter** font family:
+
+```html
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+```
+
+Font weights:
+- `400` - Regular
+- `500` - Medium  
+- `600` - Semibold
+- `700` - Bold
+
+## Border Radius
+
+Custom border radius utilities:
+
+```tsx
+borderRadius: {
+  lg: "var(--radius)",              // 0.5rem
+  md: "calc(var(--radius) - 2px)",  // 0.375rem
+  sm: "calc(var(--radius) - 4px)",  // 0.25rem
+}
+```
+
+**Usage:**
+
+```tsx
+<Card className="rounded-lg">       {/* 0.5rem */}
+<Button className="rounded-md">    {/* 0.375rem */}
+<Badge className="rounded-full">   {/* Fully rounded */}
+```
+
+## Animations
+
+Tailwind Animate plugin provides animation utilities:
+
+### Built-in Animations
+
+```tsx
+<div className="animate-spin">       {/* Spinning loader */}
+<div className="animate-pulse">      {/* Pulsing effect */}
+<div className="animate-bounce">     {/* Bouncing effect */}
+```
+
+### Custom Animations
+
+```tsx
+keyframes: {
+  "accordion-down": {
+    from: { height: "0" },
+    to: { height: "var(--radix-accordion-content-height)" },
+  },
+  "accordion-up": {
+    from: { height: "var(--radix-accordion-content-height)" },
+    to: { height: "0" },
+  },
+}
+```
+
+**Usage in Components:**
+
+```tsx
+<RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
+```
+
+## Utility Classes
+
+### Common Patterns
+
+<CodeGroup>
+```tsx Fixed Sidebar
+<div className="fixed left-0 top-0 h-screen w-[240px] bg-[#0A2846] flex flex-col pt-8 z-10">
+  {/* Sidebar content */}
+</div>
+```
+
+```tsx Dark Mode Card
+<Card className="bg-[#141C2F] border-none">
+  <CardContent className="p-4">
+    {/* Content */}
+  </CardContent>
+</Card>
+```
+
+```tsx Alternating Table Rows
+<TableRow className={`border-gray-700 ${
+  index % 2 === 0 ? "bg-[#131A2C]" : "bg-[#101725]"
+}`}>
+  {/* Row content */}
+</TableRow>
+```
+
+```tsx Hover Effects
+<Button
+  variant="ghost"
+  className="text-white hover:bg-white/10"
+>
+  Hover Me
+</Button>
+```
+</CodeGroup>
+
+### Component-Specific Styles
+
+**Sidebar Active State:**
+
+```tsx
+<Button
+  variant="ghost"
+  className={`justify-start text-white hover:bg-white/10 h-12 px-4 ${
+    location.pathname === "/dashboard" ? "bg-white/10" : ""
+  }`}
+>
+  Dashboard
+</Button>
+```
+
+**Priority Badge Styling:**
+
+```tsx
+const getPriorityColor = (priority: string) => {
+  const prioridadLower = priority?.toLowerCase() || "";
+  if (prioridadLower.includes("alta")) return "bg-red-600 text-white";
+  if (prioridadLower.includes("media")) return "bg-yellow-500 text-gray-900";
+  if (prioridadLower.includes("baja")) return "bg-green-600 text-white";
+  return "bg-gray-500 text-white";
+};
+```
+
+**Connection Status Indicator:**
+
+```tsx
+<span className={`absolute bottom-0 right-0 h-2 w-2 rounded-full ${
+  isConnected ? 'bg-green-500' : 'bg-red-500'
+}`} />
+```
+
+## cn() Utility
+
+The `cn()` utility function merges Tailwind classes:
+
+```tsx lib/utils.ts
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+```
+
+**Usage:**
+
+```tsx
+import { cn } from "@/lib/utils";
+
+const Button = ({ className, variant, size }) => {
+  return (
+    <button
+      className={cn(
+        buttonVariants({ variant, size }),
+        className
+      )}
+    />
+  );
+};
+```
+
+## Class Variance Authority
+
+CVA is used for component variants:
+
+```tsx
+import { cva, type VariantProps } from "class-variance-authority";
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2", // Base styles
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground",
+        destructive: "bg-destructive text-destructive-foreground",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 px-3",
+        lg: "h-11 px-8",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  },
+);
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Semantic Colors">
+    Prefer semantic color names (`bg-primary`, `text-destructive`) over hardcoded values for theme consistency.
+  </Accordion>
+  
+  <Accordion title="Leverage CSS Variables">
+    Use CSS custom properties for colors that may change based on theme or user preferences.
+  </Accordion>
+  
+  <Accordion title="Consistent Spacing">
+    Use Tailwind's spacing scale (`p-4`, `gap-3`, `space-y-2`) for consistent spacing throughout the app.
+  </Accordion>
+  
+  <Accordion title="Component Variants">
+    Use CVA for component variants instead of conditional className strings.
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  Always use the `cn()` utility when combining dynamic class names to ensure proper class merging and avoid specificity conflicts.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="UI Components" icon="grid" href="/components/ui-components">
+    See how styling is applied to components
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/development/architecture">
+    Learn about the overall architecture
+  </Card>
+</CardGroup>

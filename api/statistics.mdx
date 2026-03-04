@@ -1,0 +1,385 @@
+---
+title: 'Statistics API'
+description: 'Export alert data to CSV for analysis'
+---
+
+## Overview
+
+The Statistics API provides functionality to export alert data in CSV format for external analysis and reporting. This API generates a download URL for a CSV file containing all alert history.
+
+<Note>
+  Statistics operations use the `/api/panel/graphql` endpoint.
+</Note>
+
+## Query: exportAlertsCsvUrl
+
+Generate a CSV export URL for all alerts in the system.
+
+From `~/workspace/source/src/pages/Estadisticas.tsx:22-31`:
+
+```graphql
+query {
+  exportAlertsCsvUrl
+}
+```
+
+### Request
+
+<CodeGroup>
+```typescript TypeScript
+import { useGraphQL } from "@/hooks/use-graphql";
+
+const { fetchGraphQL } = useGraphQL();
+
+const query = `
+  query {
+    exportAlertsCsvUrl
+  }
+`;
+
+const result = await fetchGraphQL<{ exportAlertsCsvUrl: string }>(
+  "/panel/graphql",
+  query
+);
+
+const downloadUrl = result.exportAlertsCsvUrl;
+```
+
+```javascript Fetch
+const token = localStorage.getItem("jwt_token");
+
+const response = await fetch('/api/panel/graphql', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify({
+    query: `
+      query {
+        exportAlertsCsvUrl
+      }
+    `
+  })
+});
+
+const data = await response.json();
+const downloadUrl = data.data.exportAlertsCsvUrl;
+```
+</CodeGroup>
+
+### Response
+
+<ResponseField name="exportAlertsCsvUrl" type="string" required>
+  URL to download the generated CSV file containing alert data
+  
+  The URL may be:
+  - A direct download link to a pre-signed S3 URL
+  - A relative path to a generated file on the server
+  - An absolute URL to the CSV resource
+</ResponseField>
+
+### Response Example
+
+```json
+{
+  "data": {
+    "exportAlertsCsvUrl": "https://api.fleetguard360.com/exports/alerts_2024-03-15.csv"
+  }
+}
+```
+
+## File Download Implementation
+
+From `~/workspace/source/src/pages/Estadisticas.tsx:33-44`:
+
+```typescript
+const downloadUrl = result.exportAlertsCsvUrl;
+
+// Create a temporary link element and trigger download
+const link = document.createElement("a");
+link.href = downloadUrl;
+link.download = `alertas_${new Date().toISOString().split('T')[0]}.csv`;
+link.target = "_blank";
+document.body.appendChild(link);
+link.click();
+document.body.removeChild(link);
+```
+
+<Note>
+  The download attribute suggests a filename with the current date, e.g., `alertas_2024-03-15.csv`
+</Note>
+
+### Complete Export Handler
+
+From `~/workspace/source/src/pages/Estadisticas.tsx:13-61`:
+
+```typescript
+const [isExporting, setIsExporting] = useState(false);
+
+const handleExportCSV = async () => {
+  setIsExporting(true);
+  try {
+    toast({
+      title: "Preparando exportación",
+      description: "Generando archivo CSV...",
+    });
+
+    // Get the download URL from GraphQL
+    const query = `
+      query {
+        exportAlertsCsvUrl
+      }
+    `;
+
+    const result = await fetchGraphQL<{ exportAlertsCsvUrl: string }>(
+      "/panel/graphql",
+      query
+    );
+
+    const downloadUrl = result.exportAlertsCsvUrl;
+
+    console.log("URL de descarga:", downloadUrl);
+
+    // Download the file
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `alertas_${new Date().toISOString().split('T')[0]}.csv`;
+    link.target = "_blank";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Exportación exitosa",
+      description: "El archivo CSV ha sido descargado correctamente",
+    });
+    
+  } catch (error) {
+    console.error("Error exportando CSV:", error);
+    toast({
+      title: "Error",
+      description: "No se pudo exportar el archivo CSV",
+      variant: "destructive",
+    });
+  } finally {
+    setIsExporting(false);
+  }
+};
+```
+
+## CSV File Format
+
+Based on the alert data structure, the exported CSV file contains the following columns:
+
+<ResponseField name="id" type="string">
+  Unique identifier for the alert
+</ResponseField>
+
+<ResponseField name="alertType" type="string">
+  Type of alert (e.g., "Exceso de velocidad")
+</ResponseField>
+
+<ResponseField name="responsible" type="string">
+  Area or person responsible for the alert
+</ResponseField>
+
+<ResponseField name="priority" type="string">
+  Priority level (Alta, Media, Baja)
+</ResponseField>
+
+<ResponseField name="driver" type="string">
+  Name of the driver
+</ResponseField>
+
+<ResponseField name="generatingUnit" type="string">
+  Vehicle or unit identifier
+</ResponseField>
+
+<ResponseField name="state" type="string">
+  Current state of the alert (En espera, En proceso, Resuelto)
+</ResponseField>
+
+<ResponseField name="generationDate" type="string">
+  ISO 8601 timestamp when the alert was generated
+</ResponseField>
+
+### Example CSV Format
+
+```csv
+id,alertType,responsible,priority,driver,generatingUnit,state,generationDate
+1,"Exceso de velocidad","Área de monitoreo","Alta","Carlos Sanchez","Camión-123","En proceso","2024-03-15T14:30:00Z"
+2,"Frenado brusco","Mantenimiento","Media","Ana Gómez","Furgoneta-456","Resuelto","2024-03-15T10:15:00Z"
+3,"Entrada a geocerca","Logística","Baja","Laura Fernandez","Autobús-101","En espera","2024-03-15T09:00:00Z"
+```
+
+## Export Options
+
+Currently, the API exports all alerts without filtering options. Future enhancements could include:
+
+<Warning>
+  The current implementation does not support filtering by date range, priority, or other criteria. All alerts are exported.
+</Warning>
+
+### Potential Filter Parameters (Future)
+
+<ParamField path="startDate" type="string">
+  Start date for filtering alerts (ISO 8601 format)
+</ParamField>
+
+<ParamField path="endDate" type="string">
+  End date for filtering alerts (ISO 8601 format)
+</ParamField>
+
+<ParamField path="priority" type="string">
+  Filter by priority level (Alta, Media, Baja)
+</ParamField>
+
+<ParamField path="state" type="string">
+  Filter by alert state (En espera, En proceso, Resuelto)
+</ParamField>
+
+<ParamField path="alertType" type="string">
+  Filter by specific alert type
+</ParamField>
+
+## User Interface Integration
+
+The export functionality is integrated into the Statistics dashboard:
+
+From `~/workspace/source/src/pages/Estadisticas.tsx:78-85`:
+
+```tsx
+<Button 
+  onClick={handleExportCSV}
+  disabled={isExporting}
+  className="bg-[#3B82F6] hover:bg-[#2563EB] text-white font-medium px-6 gap-2"
+>
+  <Download className="h-5 w-5" />
+  {isExporting ? "Exportando..." : "Exportar a CSV"}
+</Button>
+```
+
+### Loading States
+
+The button shows different states during export:
+
+- **Idle**: "Exportar a CSV" - Ready to export
+- **Loading**: "Exportando..." - Export in progress, button disabled
+- **Success**: Toast notification with success message
+- **Error**: Toast notification with error message
+
+## Error Handling
+
+The export operation includes comprehensive error handling:
+
+```typescript
+try {
+  // Show preparation toast
+  toast({
+    title: "Preparando exportación",
+    description: "Generando archivo CSV...",
+  });
+
+  // Fetch export URL
+  const result = await fetchGraphQL<{ exportAlertsCsvUrl: string }>(
+    "/panel/graphql",
+    query
+  );
+
+  // Trigger download
+  // ...
+
+  // Show success toast
+  toast({
+    title: "Exportación exitosa",
+    description: "El archivo CSV ha sido descargado correctamente",
+  });
+  
+} catch (error) {
+  console.error("Error exportando CSV:", error);
+  toast({
+    title: "Error",
+    description: "No se pudo exportar el archivo CSV",
+    variant: "destructive",
+  });
+}
+```
+
+### Common Export Errors
+
+<ResponseField name="Authentication Error">
+  Token expired or missing - user will be redirected to login
+</ResponseField>
+
+<ResponseField name="Network Error">
+  Failed to connect to the server - check network connectivity
+</ResponseField>
+
+<ResponseField name="Server Error">
+  Server failed to generate CSV - may indicate data processing issues
+</ResponseField>
+
+<ResponseField name="Permission Error">
+  User may not have permissions to export data
+</ResponseField>
+
+## Performance Considerations
+
+### Large Datasets
+
+For systems with large numbers of alerts:
+
+1. **Server-side generation**: The CSV is generated on the server to avoid client memory issues
+2. **Streaming**: Consider implementing streaming for very large exports
+3. **Background jobs**: For extremely large datasets, consider asynchronous generation with email notification
+
+### Browser Compatibility
+
+The download implementation uses the `download` attribute and programmatic link clicking, which is supported in:
+
+- Chrome 14+
+- Firefox 20+
+- Safari 10.1+
+- Edge (all versions)
+
+<Note>
+  The `target="_blank"` attribute ensures the download doesn't navigate away from the current page.
+</Note>
+
+## Data Analysis
+
+Once exported, the CSV file can be used for:
+
+- **Power BI Integration**: Import into Power BI for dashboard creation
+- **Excel Analysis**: Pivot tables, charts, and statistical analysis
+- **Database Import**: Load into data warehouses for long-term storage
+- **Custom Scripts**: Process with Python, R, or other data analysis tools
+
+### Power BI Integration
+
+The Statistics page includes an embedded Power BI dashboard:
+
+From `~/workspace/source/src/pages/Estadisticas.tsx:89-98`:
+
+```tsx
+<iframe 
+  title="Informe Fabrica Escuela 2025-2 Alertas" 
+  width="100%" 
+  height="900" 
+  src="https://app.powerbi.com/view?r=eyJrIjoiNDAxZGE3OTUtYjliNi00MjYyLTlmNmItMTA4YTY2NzVmZGQxIiwidCI6Ijk5ZTFlNzIxLTcxODQtNDk4ZS04YWZmLWIyYWQ0ZTUzYzFjMiIsImMiOjR9" 
+  frameBorder="0" 
+  allowFullScreen={true}
+/>
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Alerts API" icon="bell" href="/api/alerts">
+    Learn how to query alert data before export
+  </Card>
+  <Card title="Alert Types" icon="list" href="/api/alert-types">
+    Configure alert types that appear in exports
+  </Card>
+</CardGroup>

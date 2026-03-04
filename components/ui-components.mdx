@@ -1,0 +1,605 @@
+---
+title: 'UI Components'
+description: 'Complete reference for shadcn/ui components used in FleetGuard360'
+icon: 'grid'
+---
+
+## Overview
+
+FleetGuard360 includes **48+ shadcn/ui components** built on Radix UI primitives. All components are fully typed, accessible, and customizable through Tailwind CSS.
+
+## Component Library
+
+All UI components are located in `src/components/ui/` and can be imported with the `@/components/ui` alias.
+
+### Core Components
+
+<CardGroup cols={3}>
+  <Card title="Button" icon="cursor-click">
+    Interactive button with variants
+  </Card>
+  <Card title="Card" icon="square">
+    Container for content sections
+  </Card>
+  <Card title="Table" icon="table">
+    Data tables with sorting
+  </Card>
+  <Card title="Badge" icon="tag">
+    Status indicators and labels
+  </Card>
+  <Card title="Dialog" icon="window">
+    Modal dialogs and alerts
+  </Card>
+  <Card title="Select" icon="chevron-down">
+    Dropdown selection menus
+  </Card>
+  <Card title="Input" icon="pencil">
+    Text input fields
+  </Card>
+  <Card title="Textarea" icon="align-left">
+    Multi-line text input
+  </Card>
+  <Card title="Label" icon="text">
+    Form field labels
+  </Card>
+</CardGroup>
+
+## Button Component
+
+The Button component supports multiple variants and sizes with full accessibility.
+
+### Component Structure
+
+```tsx src/components/ui/button.tsx
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3",
+        lg: "h-11 rounded-md px-8",
+        icon: "h-10 w-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  },
+);
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
+    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+  },
+);
+Button.displayName = "Button";
+
+export { Button, buttonVariants };
+```
+
+### Usage Examples
+
+<CodeGroup>
+```tsx Default Button
+import { Button } from "@/components/ui/button";
+
+<Button>Click Me</Button>
+```
+
+```tsx Variants
+<Button variant="default">Default</Button>
+<Button variant="destructive">Destructive</Button>
+<Button variant="outline">Outline</Button>
+<Button variant="secondary">Secondary</Button>
+<Button variant="ghost">Ghost</Button>
+<Button variant="link">Link</Button>
+```
+
+```tsx With Icons
+import { Plus, Edit, Trash2 } from "lucide-react";
+
+<Button>
+  <Plus className="w-4 h-4 mr-2" />
+  ADD ITEM
+</Button>
+
+<Button size="sm" variant="ghost">
+  <Edit className="h-4 w-4" />
+</Button>
+```
+
+```tsx As Child (Sidebar)
+import { Link } from "react-router-dom";
+
+<Button variant="ghost" asChild>
+  <Link to="/dashboard" className="flex items-center gap-3">
+    <Bell className="h-5 w-5" />
+    <span>Dashboard</span>
+  </Link>
+</Button>
+```
+</CodeGroup>
+
+## Card Component
+
+Card components provide containers for content with consistent styling.
+
+```tsx src/components/ui/card.tsx
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}
+      {...props}
+    />
+  ),
+);
+Card.displayName = "Card";
+
+const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
+  ),
+);
+CardHeader.displayName = "CardHeader";
+
+const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
+  ({ className, ...props }, ref) => (
+    <h3 ref={ref} className={cn("text-2xl font-semibold leading-none tracking-tight", className)} {...props} />
+  ),
+);
+CardTitle.displayName = "CardTitle";
+
+const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />,
+);
+CardContent.displayName = "CardContent";
+
+export { Card, CardHeader, CardTitle, CardContent };
+```
+
+### Card Usage
+
+```tsx src/pages/Dashboard.tsx
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+<Card>
+  <CardContent className="p-0">
+    <Table>
+      <TableHeader>
+        <TableRow className="bg-muted/50">
+          <TableHead>Nombre</TableHead>
+          <TableHead>Descripción</TableHead>
+          <TableHead>Prioridad</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {alerts.map((alert) => (
+          <TableRow key={alert.id}>
+            <TableCell>{alert.name}</TableCell>
+            <TableCell>{alert.description}</TableCell>
+            <TableCell>
+              <Badge>{alert.priority}</Badge>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  </CardContent>
+</Card>
+```
+
+## Badge Component
+
+Badges display status, priority levels, and labels.
+
+```tsx src/components/ui/badge.tsx
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+
+const badgeVariants = cva(
+  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      variant: {
+        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+        outline: "text-foreground",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
+export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {}
+
+function Badge({ className, variant, ...props }: BadgeProps) {
+  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+}
+
+export { Badge, badgeVariants };
+```
+
+### Badge Usage Examples
+
+<CodeGroup>
+```tsx Priority Badges
+const getPriorityColor = (priorityId: number) => {
+  switch (priorityId) {
+    case 3: return "bg-priority-critical text-white";
+    case 2: return "bg-priority-medium text-white";
+    case 1: return "bg-aqua-green text-white";
+    default: return "bg-muted text-muted-foreground";
+  }
+};
+
+<Badge className={getPriorityColor(alert.priorityId)}>
+  {alert.priority}
+</Badge>
+```
+
+```tsx Status Badges
+const getEstadoColor = (estado: string) => {
+  const estadoLower = estado.toLowerCase().trim();
+  
+  if (estadoLower.includes("espera")) {
+    return "bg-yellow-500 text-gray-900 font-semibold";
+  }
+  if (estadoLower.includes("proceso")) {
+    return "bg-blue-600 text-white font-semibold";
+  }
+  if (estadoLower.includes("resuelto")) {
+    return "bg-green-600 text-white font-semibold";
+  }
+  return "bg-gray-500 text-white";
+};
+
+<Badge className={getEstadoColor(alert.estado)}>
+  {alert.estado}
+</Badge>
+```
+
+```tsx Notification Badge
+<Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-600 text-white text-xs">
+  {unreadCount > 9 ? "9+" : unreadCount}
+</Badge>
+```
+</CodeGroup>
+
+## Table Component
+
+Tables display structured data with full composition support.
+
+```tsx src/components/ui/table.tsx
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
+  ({ className, ...props }, ref) => (
+    <div className="relative w-full overflow-auto">
+      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+    </div>
+  ),
+);
+Table.displayName = "Table";
+
+const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
+  ({ className, ...props }, ref) => <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />,
+);
+TableHeader.displayName = "TableHeader";
+
+const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
+  ({ className, ...props }, ref) => (
+    <tbody ref={ref} className={cn("[&_tr:last-child]:border-0", className)} {...props} />
+  ),
+);
+TableBody.displayName = "TableBody";
+
+const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(
+  ({ className, ...props }, ref) => (
+    <tr
+      ref={ref}
+      className={cn("border-b transition-colors data-[state=selected]:bg-muted", className)}
+      {...props}
+    />
+  ),
+);
+TableRow.displayName = "TableRow";
+
+const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(
+  ({ className, ...props }, ref) => (
+    <th
+      ref={ref}
+      className={cn(
+        "h-12 px-4 text-left align-middle font-medium text-muted-foreground",
+        className,
+      )}
+      {...props}
+    />
+  ),
+);
+TableHead.displayName = "TableHead";
+
+const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
+  ({ className, ...props }, ref) => (
+    <td ref={ref} className={cn("p-4 align-middle", className)} {...props} />
+  ),
+);
+TableCell.displayName = "TableCell";
+
+export { Table, TableHeader, TableBody, TableHead, TableRow, TableCell };
+```
+
+### Table Usage
+
+```tsx src/pages/PanelDeAlertas.tsx
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+
+<Table>
+  <TableHeader>
+    <TableRow className="border-gray-700 hover:bg-transparent">
+      <TableHead className="font-semibold text-[#E5E7EB]">Tipo</TableHead>
+      <TableHead className="font-semibold text-[#E5E7EB]">Responsable</TableHead>
+      <TableHead className="font-semibold text-[#E5E7EB]">Prioridad</TableHead>
+      <TableHead className="font-semibold text-[#E5E7EB]">Estado</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    {alerts.map((alert, index) => (
+      <TableRow 
+        key={alert.id} 
+        className={`border-gray-700 ${
+          index % 2 === 0 ? "bg-[#131A2C]" : "bg-[#101725]"
+        }`}
+      >
+        <TableCell className="text-[#E5E7EB]">{alert.tipo}</TableCell>
+        <TableCell className="text-[#E5E7EB]">{alert.responsable}</TableCell>
+        <TableCell>
+          <Badge className={getPriorityColor(alert.prioridad)}>
+            {alert.prioridad}
+          </Badge>
+        </TableCell>
+        <TableCell>
+          <Badge className={getEstadoColor(alert.estado)}>
+            {alert.estado}
+          </Badge>
+        </TableCell>
+      </TableRow>
+    ))}
+  </TableBody>
+</Table>
+```
+
+## Dialog & AlertDialog
+
+Modals and alert dialogs for user interactions.
+
+```tsx src/components/ui/dialog.tsx
+import * as React from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const Dialog = DialogPrimitive.Root;
+const DialogTrigger = DialogPrimitive.Trigger;
+
+const DialogContent = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
+  <DialogPrimitive.Portal>
+    <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80" />
+    <DialogPrimitive.Content
+      ref={ref}
+      className={cn(
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 sm:rounded-lg",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+      <DialogPrimitive.Close className="absolute right-4 top-4">
+        <X className="h-4 w-4" />
+      </DialogPrimitive.Close>
+    </DialogPrimitive.Content>
+  </DialogPrimitive.Portal>
+));
+
+export { Dialog, DialogTrigger, DialogContent };
+```
+
+### Dialog Usage
+
+```tsx Dashboard.tsx
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Plus } from "lucide-react";
+
+<AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+  <AlertDialogTrigger asChild>
+    <Button variant="outline">
+      <Plus className="w-4 h-4 mr-2" />
+      ADD ITEM
+    </Button>
+  </AlertDialogTrigger>
+  
+  <AlertDialogContent className="max-w-md">
+    <AlertDialogHeader>
+      <AlertDialogTitle>Agregar Nueva Alerta</AlertDialogTitle>
+    </AlertDialogHeader>
+    
+    <div className="space-y-4">
+      <div>
+        <Label htmlFor="alert-name">Nombre de la Alerta</Label>
+        <Input
+          id="alert-name"
+          placeholder="Ingresa el nombre"
+          value={newAlert.name}
+          onChange={(e) => setNewAlert({ ...newAlert, name: e.target.value })}
+        />
+      </div>
+    </div>
+  </AlertDialogContent>
+</AlertDialog>
+```
+
+## Select Component
+
+Dropdown selection built on Radix UI Select primitive.
+
+```tsx src/components/ui/select.tsx (excerpt)
+import * as React from "react";
+import * as SelectPrimitive from "@radix-ui/react-select";
+import { Check, ChevronDown } from "lucide-react";
+
+const Select = SelectPrimitive.Root;
+const SelectValue = SelectPrimitive.Value;
+
+const SelectTrigger = React.forwardRef<
+  React.ElementRef<typeof SelectPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
+>(({ className, children, ...props }, ref) => (
+  <SelectPrimitive.Trigger
+    ref={ref}
+    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2"
+    {...props}
+  >
+    {children}
+    <SelectPrimitive.Icon asChild>
+      <ChevronDown className="h-4 w-4 opacity-50" />
+    </SelectPrimitive.Icon>
+  </SelectPrimitive.Trigger>
+));
+
+export { Select, SelectTrigger, SelectValue, SelectContent, SelectItem };
+```
+
+### Select Usage
+
+```tsx Dashboard.tsx
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+<Select 
+  value={newAlert.priority} 
+  onValueChange={(value) => setNewAlert({ ...newAlert, priority: value })}
+>
+  <SelectTrigger className="mt-2">
+    <SelectValue placeholder="Selecciona una prioridad" />
+  </SelectTrigger>
+  <SelectContent>
+    {priorities.map((priority) => (
+      <SelectItem key={priority.id} value={priority.id.toString()}>
+        {priority.nombre}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+```
+
+## Additional Components
+
+<AccordionGroup>
+  <Accordion title="Form Components">
+    - **Input**: Text input with variants
+    - **Textarea**: Multi-line text input
+    - **Label**: Form field labels
+    - **Checkbox**: Boolean selection
+    - **Radio Group**: Single selection from options
+    - **Switch**: Toggle switch
+  </Accordion>
+  
+  <Accordion title="Overlay Components">
+    - **Popover**: Floating content container
+    - **Tooltip**: Hover information
+    - **Sheet**: Slide-out panels
+    - **DropdownMenu**: Context menus
+    - **ContextMenu**: Right-click menus
+  </Accordion>
+  
+  <Accordion title="Feedback Components">
+    - **Toast**: Notification messages
+    - **Alert**: Inline notifications
+    - **Progress**: Progress indicators
+    - **Skeleton**: Loading placeholders
+  </Accordion>
+  
+  <Accordion title="Navigation Components">
+    - **Tabs**: Tabbed interfaces
+    - **NavigationMenu**: Navigation bars
+    - **Breadcrumb**: Breadcrumb trails
+    - **Pagination**: Page navigation
+  </Accordion>
+  
+  <Accordion title="Data Display">
+    - **Avatar**: User avatars
+    - **ScrollArea**: Custom scrollbars
+    - **Separator**: Visual dividers
+    - **Collapsible**: Expandable content
+  </Accordion>
+</AccordionGroup>
+
+## Component Props & TypeScript
+
+All components are fully typed with TypeScript:
+
+```tsx
+// Button props extend HTML button attributes
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
+
+// Badge props extend HTML div attributes
+export interface BadgeProps 
+  extends React.HTMLAttributes<HTMLDivElement>, 
+  VariantProps<typeof badgeVariants> {}
+```
+
+<Note>
+  All shadcn/ui components use `forwardRef` to support ref forwarding and are compatible with Radix UI primitives for accessibility.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Hooks" icon="repeat" href="/components/hooks">
+    Learn about custom React hooks
+  </Card>
+  <Card title="Styling" icon="palette" href="/components/styling">
+    Understand Tailwind configuration
+  </Card>
+</CardGroup>

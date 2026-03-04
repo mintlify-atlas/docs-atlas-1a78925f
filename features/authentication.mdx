@@ -1,0 +1,250 @@
+---
+title: 'Authentication System'
+description: 'JWT-based authentication with secure session management'
+icon: 'shield-check'
+---
+
+## Overview
+
+FleetGuard360 implements a secure JWT-based authentication system that manages user sessions with configurable storage options and automatic session expiration handling.
+
+## Authentication Flow
+
+<Steps>
+  <Step title="User Login">
+    The user enters their email and password credentials on the login form.
+  </Step>
+  
+  <Step title="Server Validation">
+    The system sends a POST request to `/api/auth/login` with the credentials for server-side validation.
+  </Step>
+  
+  <Step title="Token Generation">
+    Upon successful authentication, the server returns a JWT token that contains encoded user information.
+  </Step>
+  
+  <Step title="Token Storage">
+    The token is stored in either localStorage (persistent) or sessionStorage (temporary) based on the "Remember me" option.
+  </Step>
+</Steps>
+
+## Login Form Fields
+
+The login interface (`src/pages/Login.tsx:36-85`) accepts the following credentials:
+
+<ParamField path="email" type="string" required>
+  User's email address for authentication
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  User's password (transmitted securely over HTTPS)
+</ParamField>
+
+<ParamField path="remember" type="boolean" default={false}>
+  Persist session across browser restarts using localStorage instead of sessionStorage
+</ParamField>
+
+## Token Storage Strategy
+
+The system implements a dual storage approach based on user preference:
+
+```tsx Login.tsx:58-64
+if (data?.jwt) {
+  // Guardar token en localStorage o sessionStorage
+  if (credentials.remember) {
+    localStorage.setItem("jwt_token", data.jwt);
+  } else {
+    sessionStorage.setItem("jwt_token", data.jwt);
+  }
+}
+```
+
+<Note>
+  When "Remember me" is checked, the JWT token persists in `localStorage` and survives browser restarts. Without this option, tokens are stored in `sessionStorage` and cleared when the browser closes.
+</Note>
+
+## GraphQL Authentication
+
+All GraphQL requests include the JWT token in the Authorization header:
+
+```typescript use-graphql.ts:18-32
+const token = localStorage.getItem("jwt_token") || sessionStorage.getItem("jwt_token");
+
+if (!token) {
+  navigate("/");
+  throw new Error("No authentication token found");
+}
+
+const response = await fetch(`${API_URL}${endpoint}`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({ query, variables }),
+});
+```
+
+## Session Expiration Handling
+
+The system automatically detects expired sessions and redirects users to the login page:
+
+```typescript use-graphql.ts:34-39
+if (response.status === 401 || response.status === 403) {
+  localStorage.removeItem("jwt_token");
+  sessionStorage.removeItem("jwt_token");
+  navigate("/", { state: { sessionExpired: true } });
+  throw new Error("Session expired");
+}
+```
+
+<Warning>
+  When a session expires (401/403 response), the system:
+  1. Clears both localStorage and sessionStorage tokens
+  2. Redirects to the login page with a session expiration message
+  3. Displays a toast notification informing the user
+</Warning>
+
+## Session Expiration Notification
+
+When redirected due to session expiration, users see an automatic notification:
+
+```tsx Login.tsx:24-34
+useEffect(() => {
+  if (location.state?.sessionExpired) {
+    toast({
+      title: "Sesión expirada",
+      description: "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+      variant: "destructive",
+    });
+    // Limpiar el estado para que no se muestre de nuevo si se recarga
+    window.history.replaceState({}, document.title);
+  }
+}, [location, toast]);
+```
+
+## Protected Routes
+
+The `useGraphQL` hook automatically protects all API calls by:
+
+1. Checking for a valid JWT token before making requests
+2. Redirecting to login if no token is found
+3. Automatically handling 401/403 responses by clearing tokens and redirecting
+
+## Security Features
+
+<CardGroup cols={2}>
+  <Card title="Token Validation" icon="check-circle">
+    Every GraphQL request validates the JWT token server-side
+  </Card>
+  
+  <Card title="Automatic Cleanup" icon="broom">
+    Expired tokens are automatically removed from storage
+  </Card>
+  
+  <Card title="Secure Headers" icon="lock">
+    All authenticated requests use Bearer token authentication
+  </Card>
+  
+  <Card title="Session Tracking" icon="clock">
+    Audit log records all operator authentication attempts
+  </Card>
+</CardGroup>
+
+## Login Example
+
+Here's the complete login submission handler:
+
+```tsx Login.tsx:36-85
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
+
+  try {
+    const response = await fetch(`${API_URL}/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Credenciales inválidas");
+    }
+
+    const data = await response.json();
+
+    if (data?.jwt) {
+      // Guardar token en localStorage o sessionStorage
+      if (credentials.remember) {
+        localStorage.setItem("jwt_token", data.jwt);
+      } else {
+        sessionStorage.setItem("jwt_token", data.jwt);
+      }
+
+      toast({
+        title: "Login exitoso",
+        description: `Bienvenido ${data.email}`,
+      });
+
+      navigate("/dashboard");
+    } else {
+      throw new Error("Respuesta inválida del servidor");
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "No se pudo iniciar sesión";
+    toast({
+      title: "Error de autenticación",
+      description: message || "No se pudo iniciar sesión",
+      variant: "destructive",
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+## Implementation Details
+
+<Tabs>
+  <Tab title="Token Storage">
+    **File Location:** `src/pages/Login.tsx:58-64`
+    
+    Tokens are conditionally stored based on the "Remember me" checkbox:
+    - **localStorage**: Persists across browser sessions
+    - **sessionStorage**: Cleared when browser closes
+  </Tab>
+  
+  <Tab title="Token Retrieval">
+    **File Location:** `src/hooks/use-graphql.ts:18`
+    
+    The hook checks both storage locations:
+    ```typescript
+    const token = localStorage.getItem("jwt_token") || sessionStorage.getItem("jwt_token");
+    ```
+  </Tab>
+  
+  <Tab title="Token Validation">
+    **File Location:** `src/hooks/use-graphql.ts:29`
+    
+    Every request includes the Bearer token:
+    ```typescript
+    Authorization: `Bearer ${token}`
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<Note>
+  **Security Recommendations:**
+  - Always use HTTPS in production to protect JWT tokens in transit
+  - Implement token refresh mechanisms for long-running sessions
+  - Set appropriate token expiration times on the server
+  - Clear tokens immediately upon logout
+  - Monitor authentication logs for suspicious activity
+</Note>

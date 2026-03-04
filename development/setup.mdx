@@ -1,0 +1,571 @@
+---
+title: 'Development Setup'
+description: 'Complete guide to setting up your FleetGuard360 development environment'
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js">
+    **Required:** Node.js 18.x or higher
+    
+    Download from [nodejs.org](https://nodejs.org/)
+  </Card>
+  
+  <Card title="npm" icon="box">
+    **Included with Node.js**
+    
+    Package manager for dependencies
+  </Card>
+  
+  <Card title="Git" icon="git">
+    **Required:** For version control
+    
+    Download from [git-scm.com](https://git-scm.com/)
+  </Card>
+  
+  <Card title="IDE" icon="code">
+    **Recommended:** VS Code or WebStorm
+    
+    See IDE setup below
+  </Card>
+</CardGroup>
+
+<Note>
+Verify your Node.js version by running `node --version`. The project requires Node.js 18 or higher for optimal compatibility.
+</Note>
+
+## Quick Start
+
+Get up and running in under 5 minutes:
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the FleetGuard360 frontend repository:
+    
+    ```bash
+    git clone https://github.com/CodeFactory-FleetGuard360-EV04/Frontend.git
+    cd Frontend
+    ```
+  </Step>
+  
+  <Step title="Install Dependencies">
+    Install all required npm packages:
+    
+    ```bash
+    npm install
+    ```
+    
+    This will install:
+    - React 18.3.1 and React DOM
+    - TypeScript 5.8.3
+    - Vite 5.4.19
+    - All UI components (Radix UI, shadcn/ui)
+    - Development tools (ESLint, Tailwind CSS)
+    - Real-time libraries (SockJS, StompJS)
+  </Step>
+  
+  <Step title="Start Development Server">
+    Launch the development server with hot module replacement:
+    
+    ```bash
+    npm run dev
+    ```
+    
+    The application will be available at `http://localhost:3000`
+  </Step>
+  
+  <Step title="Open in Browser">
+    Navigate to `http://localhost:3000` to see the application running.
+    
+    Changes to source files will automatically reload in the browser.
+  </Step>
+</Steps>
+
+<Check>
+If you see the login page, congratulations! Your development environment is ready.
+</Check>
+
+## IDE Configuration
+
+### Visual Studio Code (Recommended)
+
+**Recommended Extensions:**
+
+<Tabs>
+  <Tab title="Essential">
+    ```json .vscode/extensions.json
+    {
+      "recommendations": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "ms-vscode.vscode-typescript-next"
+      ]
+    }
+    ```
+    
+    Install these extensions for the best development experience:
+    - **ESLint** - Real-time linting
+    - **Prettier** - Code formatting
+    - **Tailwind CSS IntelliSense** - Autocomplete for Tailwind classes
+    - **TypeScript** - Enhanced TypeScript support
+  </Tab>
+  
+  <Tab title="Optional">
+    Additional useful extensions:
+    - **GitLens** - Enhanced Git integration
+    - **Auto Rename Tag** - Automatically rename paired HTML/JSX tags
+    - **Error Lens** - Inline error highlighting
+    - **Path Intellisense** - Autocomplete filenames
+    - **Import Cost** - Display import sizes
+  </Tab>
+</Tabs>
+
+**Recommended Settings:**
+
+```json .vscode/settings.json
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"]
+  ]
+}
+```
+
+### WebStorm / IntelliJ IDEA
+
+<Steps>
+  <Step title="Enable TypeScript Support">
+    Go to **Settings** → **Languages & Frameworks** → **TypeScript**
+    
+    - Enable TypeScript Language Service
+    - Set TypeScript version to project version (5.8.3)
+  </Step>
+  
+  <Step title="Configure ESLint">
+    Go to **Settings** → **Languages & Frameworks** → **JavaScript** → **Code Quality Tools** → **ESLint**
+    
+    - Enable "Automatic ESLint configuration"
+    - Check "Run eslint --fix on save"
+  </Step>
+  
+  <Step title="Set up Tailwind CSS">
+    WebStorm provides built-in Tailwind CSS support with autocomplete and validation.
+  </Step>
+</Steps>
+
+## Available Scripts
+
+The project includes several npm scripts defined in `package.json:6-11`:
+
+<CodeGroup>
+```bash Development
+# Start development server with HMR
+npm run dev
+
+# Server runs on http://localhost:3000
+# Includes API proxy to http://fleetguard-api.ddns.net
+# Supports WebSocket connections
+```
+
+```bash Build
+# Production build (optimized)
+npm run build
+
+# Development build (with source maps)
+npm run build:dev
+
+# Output directory: dist/
+```
+
+```bash Quality Checks
+# Run ESLint on all TypeScript files
+npm run lint
+
+# Checks for:
+# - TypeScript errors
+# - React hooks usage
+# - Code quality issues
+```
+
+```bash Preview
+# Preview production build locally
+npm run preview
+
+# Serves the dist/ directory
+# Useful for testing production builds
+```
+</CodeGroup>
+
+## TypeScript Configuration
+
+The project uses a comprehensive TypeScript setup split across three configuration files:
+
+### Root Configuration (`tsconfig.json`)
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]    // Path alias for clean imports
+    },
+    "noImplicitAny": false,       // Relaxed for rapid development
+    "strictNullChecks": false,    // Flexible null handling
+    "skipLibCheck": true          // Faster compilation
+  },
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}
+```
+
+<Note>
+The path alias `@/*` allows you to import from the src directory using `@/` instead of relative paths:
+
+```typescript
+// Instead of this:
+import { Button } from "../../../components/ui/button";
+
+// You can write:
+import { Button } from "@/components/ui/button";
+```
+</Note>
+
+### Application Config (`tsconfig.app.json`)
+
+Configuration for application code:
+
+- **Target:** ES2020
+- **Module:** ESNext with bundler resolution
+- **JSX:** react-jsx (new JSX transform)
+- **Includes:** All files in `src/`
+
+### Node Config (`tsconfig.node.json`)
+
+Configuration for build tools and Vite config:
+
+- **Target:** ES2022
+- **Strict mode:** Enabled
+- **Includes:** `vite.config.ts`
+
+## ESLint Configuration
+
+Code quality is enforced through ESLint with TypeScript support (`eslint.config.js`):
+
+```javascript
+export default tseslint.config(
+  { ignores: ["dist"] },
+  {
+    extends: [
+      js.configs.recommended,
+      ...tseslint.configs.recommended
+    ],
+    files: ["**/*.{ts,tsx}"],
+    plugins: {
+      "react-hooks": reactHooks,
+      "react-refresh": reactRefresh,
+    },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      "react-refresh/only-export-components": ["warn"],
+      "@typescript-eslint/no-unused-vars": "off"
+    }
+  }
+);
+```
+
+**What it checks:**
+- React Hooks rules (proper dependencies, hook call order)
+- Component export patterns for HMR
+- TypeScript best practices
+- Code quality and potential bugs
+
+<Warning>
+Unused variables warnings are disabled for development convenience. Consider enabling them before production deployments.
+</Warning>
+
+## Development Server Configuration
+
+### Proxy Setup
+
+The development server (`vite.config.ts:8-28`) includes proxy configuration to handle API and WebSocket connections:
+
+<Tabs>
+  <Tab title="GraphQL API Proxy">
+    **Path:** `/api`
+    
+    Forwards GraphQL requests to the backend:
+    
+    ```typescript
+    proxy: {
+      "/api": {
+        target: "http://fleetguard-api.ddns.net",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ""),
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq) => {
+            proxyReq.setHeader("Origin", "http://fleetguard-api.ddns.net");
+          });
+        }
+      }
+    }
+    ```
+    
+    **How it works:**
+    - Frontend request: `http://localhost:3000/api/graphql`
+    - Proxied to: `http://fleetguard-api.ddns.net/graphql`
+    - Origin header is set to match backend CORS policy
+  </Tab>
+  
+  <Tab title="WebSocket Proxy">
+    **Path:** `/notifications`
+    
+    Forwards WebSocket connections for real-time alerts:
+    
+    ```typescript
+    proxy: {
+      "/notifications": {
+        target: "http://fleetguard-api.ddns.net",
+        changeOrigin: true,
+        ws: true,     // Enable WebSocket proxying
+        secure: false
+      }
+    }
+    ```
+    
+    **How it works:**
+    - WebSocket connects to: `ws://localhost:3000/notifications/ws-alerts`
+    - Proxied to: `ws://fleetguard-api.ddns.net/notifications/ws-alerts`
+    - Maintains persistent connection for real-time updates
+  </Tab>
+</Tabs>
+
+<Note>
+Proxy configuration is only active during development. Production deployments use Vercel rewrites (see [Build & Deploy](/development/build-deploy)).
+</Note>
+
+### Hot Module Replacement
+
+Vite provides instant feedback during development:
+
+```typescript
+plugins: [
+  react(),                    // React Fast Refresh
+  mode === "development" &&   // Dev-only plugins
+    componentTagger()          // Component debugging metadata
+].filter(Boolean)
+```
+
+**Features:**
+- **Instant updates** - Changes reflect in less than 1 second
+- **State preservation** - Component state survives updates
+- **SWC compiler** - Ultra-fast TypeScript and JSX compilation
+- **Component tagger** - Adds debugging metadata in development
+
+## Environment Variables
+
+### Development Environment
+
+No environment variables are required for local development. The proxy configuration handles all backend connectivity.
+
+### Custom Environment Variables
+
+If you need to add environment variables:
+
+<Steps>
+  <Step title="Create .env file">
+    Create a `.env` file in the project root:
+    
+    ```bash
+    # .env
+    VITE_API_URL=http://localhost:8080
+    VITE_WS_URL=ws://localhost:8080/notifications
+    ```
+  </Step>
+  
+  <Step title="Access in code">
+    Access variables using `import.meta.env`:
+    
+    ```typescript
+    const apiUrl = import.meta.env.VITE_API_URL;
+    const wsUrl = import.meta.env.VITE_WS_URL;
+    ```
+  </Step>
+  
+  <Step title="TypeScript types">
+    Add type definitions in `vite-env.d.ts`:
+    
+    ```typescript
+    interface ImportMetaEnv {
+      readonly VITE_API_URL: string;
+      readonly VITE_WS_URL: string;
+    }
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+All Vite environment variables must be prefixed with `VITE_` to be exposed to the client-side code.
+</Warning>
+
+## Git Workflow
+
+### Branch Strategy
+
+<Steps>
+  <Step title="Main Branch">
+    `main` - Production-ready code, always deployable
+  </Step>
+  
+  <Step title="Feature Branches">
+    Create feature branches from `main`:
+    
+    ```bash
+    git checkout -b feature/alert-filtering
+    git checkout -b fix/websocket-reconnect
+    ```
+  </Step>
+  
+  <Step title="Development">
+    Make changes, commit frequently:
+    
+    ```bash
+    git add .
+    git commit -m "feat: add alert filtering by priority"
+    ```
+  </Step>
+  
+  <Step title="Pull Request">
+    Push to remote and create a pull request:
+    
+    ```bash
+    git push origin feature/alert-filtering
+    ```
+  </Step>
+</Steps>
+
+### Commit Conventions
+
+Use conventional commits for clear history:
+
+```bash
+feat: add new feature
+fix: bug fix
+docs: documentation changes
+style: formatting, missing semicolons, etc.
+refactor: code refactoring
+test: adding tests
+chore: maintenance tasks
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Port 3000 already in use">
+    If port 3000 is occupied:
+    
+    **Option 1:** Kill the process using port 3000
+    ```bash
+    # On macOS/Linux
+    lsof -ti:3000 | xargs kill -9
+    
+    # On Windows
+    netstat -ano | findstr :3000
+    taskkill /PID <PID> /F
+    ```
+    
+    **Option 2:** Use a different port
+    ```bash
+    vite --port 3001
+    ```
+  </Accordion>
+  
+  <Accordion title="npm install fails">
+    Common solutions:
+    
+    1. **Clear npm cache:**
+       ```bash
+       npm cache clean --force
+       npm install
+       ```
+    
+    2. **Delete node_modules and reinstall:**
+       ```bash
+       rm -rf node_modules package-lock.json
+       npm install
+       ```
+    
+    3. **Check Node.js version:**
+       ```bash
+       node --version  # Should be 18.x or higher
+       ```
+  </Accordion>
+  
+  <Accordion title="API requests fail (CORS errors)">
+    The proxy configuration should handle CORS automatically. If you see CORS errors:
+    
+    1. Verify the dev server is running on port 3000
+    2. Check that requests use `/api` prefix
+    3. Ensure backend is accessible at `http://fleetguard-api.ddns.net`
+    4. Restart the dev server: `npm run dev`
+  </Accordion>
+  
+  <Accordion title="TypeScript errors">
+    If you see unexpected TypeScript errors:
+    
+    1. **Restart TypeScript server in VS Code:**
+       - Open Command Palette (Cmd/Ctrl + Shift + P)
+       - Run "TypeScript: Restart TS Server"
+    
+    2. **Clear TypeScript cache:**
+       ```bash
+       rm -rf node_modules/.vite
+       ```
+    
+    3. **Verify tsconfig.json is valid:**
+       ```bash
+       npx tsc --noEmit
+       ```
+  </Accordion>
+  
+  <Accordion title="Hot reload not working">
+    If changes don't reflect automatically:
+    
+    1. **Check file is saved** (Ctrl/Cmd + S)
+    2. **Verify file is in src/ directory**
+    3. **Restart dev server:** `npm run dev`
+    4. **Check browser console for errors**
+    5. **Try hard refresh:** Ctrl/Cmd + Shift + R
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture Guide" icon="sitemap" href="/development/architecture">
+    Understand the application architecture and design patterns
+  </Card>
+  
+  <Card title="Build & Deploy" icon="rocket" href="/development/build-deploy">
+    Learn how to build and deploy to production
+  </Card>
+  
+  <Card title="Component Library" icon="puzzle-piece" href="/components">
+    Explore available UI components
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Learn about GraphQL API integration
+  </Card>
+</CardGroup>

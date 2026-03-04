@@ -1,0 +1,306 @@
+---
+title: 'Authentication'
+description: 'Learn how to authenticate with the FleetGuard360 API'
+---
+
+## Overview
+
+FleetGuard360 uses JWT (JSON Web Token) based authentication. Users authenticate via the REST login endpoint and receive a token that must be included in all subsequent GraphQL requests.
+
+## Login Endpoint
+
+### POST /api/auth/login
+
+Authenticate a user and receive a JWT token.
+
+<Note>
+  This is a REST endpoint, not a GraphQL operation.
+</Note>
+
+#### Request
+
+<ParamField path="email" type="string" required>
+  User's email address
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  User's password
+</ParamField>
+
+<CodeGroup>
+```javascript Fetch Request
+const response = await fetch('/api/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: credentials.email,
+    password: credentials.password,
+  }),
+});
+
+const data = await response.json();
+```
+
+```json Request Body
+{
+  "email": "operator@fleetguard360.com",
+  "password": "secure_password"
+}
+```
+</CodeGroup>
+
+#### Response
+
+<ResponseField name="jwt" type="string" required>
+  JWT authentication token to be used in subsequent requests
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  Authenticated user's email address
+</ResponseField>
+
+<CodeGroup>
+```json Success Response
+{
+  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "email": "operator@fleetguard360.com"
+}
+```
+
+```json Error Response
+{
+  "error": "Credenciales inválidas"
+}
+```
+</CodeGroup>
+
+#### Implementation Example
+
+From `~/workspace/source/src/pages/Login.tsx:36-84`:
+
+```typescript
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
+
+  try {
+    const response = await fetch(`${API_URL}/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Credenciales inválidas");
+    }
+
+    const data = await response.json();
+
+    if (data?.jwt) {
+      // Store token based on remember me preference
+      if (credentials.remember) {
+        localStorage.setItem("jwt_token", data.jwt);
+      } else {
+        sessionStorage.setItem("jwt_token", data.jwt);
+      }
+
+      navigate("/dashboard");
+    }
+  } catch (error) {
+    // Handle error
+  }
+};
+```
+
+## Token Storage
+
+The JWT token can be stored in two locations based on user preference:
+
+### localStorage
+
+Used when the "Remember Me" option is selected. Persists across browser sessions.
+
+```typescript
+localStorage.setItem("jwt_token", data.jwt);
+```
+
+<Note>
+  Tokens stored in localStorage remain available even after closing the browser.
+</Note>
+
+### sessionStorage
+
+Used for temporary sessions. Cleared when the browser tab is closed.
+
+```typescript
+sessionStorage.setItem("jwt_token", data.jwt);
+```
+
+<Warning>
+  Tokens in sessionStorage are cleared when the user closes the browser tab.
+</Warning>
+
+## Using the Token
+
+### Authorization Header
+
+All GraphQL requests must include the JWT token in the Authorization header:
+
+```typescript
+const token = localStorage.getItem("jwt_token") || 
+              sessionStorage.getItem("jwt_token");
+
+const response = await fetch(`${API_URL}/alerts/graphql`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({ query, variables }),
+});
+```
+
+### GraphQL Hook Implementation
+
+From `~/workspace/source/src/hooks/use-graphql.ts:13-51`:
+
+```typescript
+const fetchGraphQL = async <T>(
+  endpoint: string,
+  query: string,
+  variables?: Record<string, unknown>
+): Promise<T> => {
+  const token = localStorage.getItem("jwt_token") || 
+                sessionStorage.getItem("jwt_token");
+  
+  if (!token) {
+    navigate("/");
+    throw new Error("No authentication token found");
+  }
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    localStorage.removeItem("jwt_token");
+    sessionStorage.removeItem("jwt_token");
+    navigate("/", { state: { sessionExpired: true } });
+    throw new Error("Session expired");
+  }
+
+  const result: GraphQLResponse<T> = await response.json();
+
+  if (result.errors) {
+    throw new Error(result.errors[0]?.message || "GraphQL error");
+  }
+
+  return result.data;
+};
+```
+
+## Session Expiration
+
+### Automatic Handling
+
+The system automatically handles expired sessions:
+
+1. **Detection**: HTTP 401 or 403 responses indicate invalid/expired tokens
+2. **Cleanup**: Both localStorage and sessionStorage tokens are removed
+3. **Redirect**: User is redirected to login page with expiration message
+4. **Notification**: Session expiration message is displayed
+
+```typescript
+if (response.status === 401 || response.status === 403) {
+  localStorage.removeItem("jwt_token");
+  sessionStorage.removeItem("jwt_token");
+  navigate("/", { state: { sessionExpired: true } });
+  throw new Error("Session expired");
+}
+```
+
+### Session Expiration Message
+
+From `~/workspace/source/src/pages/Login.tsx:24-34`:
+
+```typescript
+useEffect(() => {
+  if (location.state?.sessionExpired) {
+    toast({
+      title: "Sesión expirada",
+      description: "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+      variant: "destructive",
+    });
+    window.history.replaceState({}, document.title);
+  }
+}, [location, toast]);
+```
+
+<Warning>
+  All 401 and 403 responses trigger automatic logout and redirect to the login page.
+</Warning>
+
+## Security Best Practices
+
+### Token Validation
+
+Before making any GraphQL request, the system validates token availability:
+
+```typescript
+const token = localStorage.getItem("jwt_token") || 
+              sessionStorage.getItem("jwt_token");
+
+if (!token) {
+  navigate("/");
+  throw new Error("No authentication token found");
+}
+```
+
+### Audit Logging
+
+Operator access is logged for security auditing:
+
+<Note>
+  "El acceso de operadores será registrado en el log de auditoría."
+</Note>
+
+## Common Authentication Errors
+
+<ResponseField name="No authentication token found">
+  Token is missing from both localStorage and sessionStorage. User needs to log in.
+</ResponseField>
+
+<ResponseField name="Credenciales inválidas">
+  Email or password is incorrect. HTTP status will be 4xx.
+</ResponseField>
+
+<ResponseField name="Session expired">
+  Token has expired (401/403 response). User is automatically redirected to login.
+</ResponseField>
+
+<ResponseField name="GraphQL error">
+  Generic error from GraphQL operations. Check the specific error message.
+</ResponseField>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Alerts API" icon="bell" href="/api/alerts">
+    Use authenticated requests to query alert data
+  </Card>
+  <Card title="Alert Types API" icon="list" href="/api/alert-types">
+    Manage alert configurations with authenticated mutations
+  </Card>
+</CardGroup>

@@ -1,0 +1,397 @@
+---
+title: 'Alert Management'
+description: 'Create, edit, and delete alert type configurations with priority and area assignments'
+icon: 'bell-plus'
+---
+
+## Overview
+
+Alert Management in FleetGuard360 enables administrators to configure how different types of alerts are categorized, prioritized, and routed to responsible teams. The system provides a complete CRUD interface for managing alert type definitions.
+
+## Alert Type Form
+
+The alert management form (`src/pages/Dashboard.tsx:332-416`) provides an intuitive interface for creating and editing alert configurations:
+
+<Steps>
+  <Step title="Alert Name">
+    Define a clear, descriptive name for the alert type (e.g., "Exceso de velocidad", "Batería baja")
+  </Step>
+  
+  <Step title="Description">
+    Provide a brief explanation of when and why this alert is triggered
+  </Step>
+  
+  <Step title="Responsible Area">
+    Assign the alert to the appropriate department for handling
+  </Step>
+  
+  <Step title="Priority Level">
+    Set the urgency level to determine response requirements
+  </Step>
+</Steps>
+
+## Form Fields
+
+### Alert Name
+
+```tsx Dashboard.tsx:339-348
+<div>
+  <Label htmlFor="alert-name">Nombre de la Alerta</Label>
+  <Input
+    id="alert-name"
+    placeholder="Ingresa el nombre de la alerta"
+    value={newAlert.name}
+    onChange={(e) => setNewAlert({ ...newAlert, name: e.target.value })}
+    className="mt-2"
+  />
+</div>
+```
+
+<ParamField path="name" type="string" required>
+  The display name for this alert type. Should be concise and descriptive.
+</ParamField>
+
+### Alert Description
+
+```tsx Dashboard.tsx:350-359
+<div>
+  <Label htmlFor="alert-description">Descripción Corta</Label>
+  <Textarea
+    id="alert-description"
+    placeholder="Describe la alerta brevemente"
+    value={newAlert.description}
+    onChange={(e) => setNewAlert({ ...newAlert, description: e.target.value })}
+    className="mt-2"
+  />
+</div>
+```
+
+<ParamField path="description" type="string" required>
+  A short description explaining the alert's purpose and trigger conditions.
+</ParamField>
+
+### Responsible Area Selection
+
+```tsx Dashboard.tsx:361-377
+<div>
+  <Label>Seleccionar Área Encargada</Label>
+  <Select 
+    value={newAlert.area} 
+    onValueChange={(value) => setNewAlert({ ...newAlert, area: value })}
+  >
+    <SelectTrigger className="mt-2">
+      <SelectValue placeholder="Selecciona un área" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="MECANICO">Mecánico</SelectItem>
+      <SelectItem value="SEGURIDAD">Seguridad</SelectItem>
+      <SelectItem value="OPERADOR_LOGISTICA">Operador Logística</SelectItem>
+      <SelectItem value="SOPORTE_TECNICO">Soporte Técnico</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
+```
+
+<ParamField path="tipoEncargado" type="enum" required>
+  The department responsible for responding to this alert type:
+  - **MECANICO**: Mechanical maintenance team
+  - **SEGURIDAD**: Security and safety team
+  - **OPERADOR_LOGISTICA**: Logistics and operations team
+  - **SOPORTE_TECNICO**: Technical support team
+</ParamField>
+
+### Priority Level Selection
+
+Priority levels are dynamically loaded from the backend:
+
+```tsx Dashboard.tsx:379-396
+<div>
+  <Label>Seleccionar Prioridad</Label>
+  <Select 
+    value={newAlert.priority} 
+    onValueChange={(value) => setNewAlert({ ...newAlert, priority: value })}
+  >
+    <SelectTrigger className="mt-2">
+      <SelectValue placeholder="Selecciona una prioridad" />
+    </SelectTrigger>
+    <SelectContent>
+      {priorities.map((priority) => (
+        <SelectItem key={priority.id} value={priority.id.toString()}>
+          {priority.nombre}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
+```
+
+<ParamField path="nivelPrioridadId" type="number" required>
+  Priority level determining response urgency:
+  - **1**: Baja (Low) - Informational alerts
+  - **2**: Media (Medium) - Requires attention
+  - **3**: Alta (High) - Critical, immediate action required
+</ParamField>
+
+## Priority Color Coding System
+
+FleetGuard360 uses a visual color coding system to distinguish priority levels at a glance:
+
+```tsx Dashboard.tsx:292-299
+const getPriorityColor = (priorityId: number) => {
+  switch (priorityId) {
+    case 3: return "bg-priority-critical text-white";
+    case 2: return "bg-priority-medium text-white";
+    case 1: return "bg-aqua-green text-white";
+    default: return "bg-muted text-muted-foreground";
+  }
+};
+```
+
+<CardGroup cols={3}>
+  <Card title="Alta (Critical)" icon="circle" color="#dc2626">
+    **Priority ID: 3**  
+    Red background - Immediate action required
+  </Card>
+  
+  <Card title="Media (Medium)" icon="circle" color="#eab308">
+    **Priority ID: 2**  
+    Yellow background - Timely response needed
+  </Card>
+  
+  <Card title="Baja (Low)" icon="circle" color="#5ab7a3">
+    **Priority ID: 1**  
+    Aqua green background - Informational
+  </Card>
+</CardGroup>
+
+## Creating New Alert Types
+
+The create operation uses a GraphQL mutation to persist the new alert type:
+
+```graphql Dashboard.tsx:177-199
+mutation CreateTipoAlerta($input: TipoAlertaCreateInput!) {
+  createTipoAlerta(input: $input) {
+    id
+    nombre
+    descripcion
+    nivelPrioridad {
+      id
+      nombre
+    }
+    tipoEncargado
+  }
+}
+```
+
+### Create Operation Flow
+
+```tsx Dashboard.tsx:138-244
+const handleSaveAlert = async () => {
+  // Validation
+  if (!newAlert.name || !newAlert.description || !newAlert.priority || !newAlert.area) {
+    toast({
+      title: "Error",
+      description: "Por favor completa todos los campos",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  try {
+    const mutation = `
+      mutation CreateTipoAlerta($input: TipoAlertaCreateInput!) {
+        createTipoAlerta(input: $input) {
+          id
+          nombre
+          descripcion
+          nivelPrioridad {
+            id
+            nombre
+          }
+          tipoEncargado
+        }
+      }
+    `;
+    
+    const variables = {
+      input: {
+        nombre: newAlert.name,
+        descripcion: newAlert.description,
+        nivelPrioridadId: getPriorityId(newAlert.priority),
+        tipoEncargado: newAlert.area,
+      },
+    };
+
+    const result = await fetchGraphQL("/alerts/graphql", mutation, variables);
+    
+    // Update local state and show success message
+    setAlerts((prev) => [...prev, alert]);
+    toast({
+      title: "Alerta creada",
+      description: `Se ha creado la alerta "${alert.name}" exitosamente`,
+    });
+  } catch (error: unknown) {
+    // Error handling
+  }
+};
+```
+
+<Note>
+  All fields are validated before submission. The form will not submit with empty or missing values.
+</Note>
+
+## Editing Existing Alert Types
+
+### Edit Operation
+
+When editing, the form is pre-populated with current values:
+
+```tsx Dashboard.tsx:246-259
+const handleEditAlert = (alert: Alert) => {
+  // Buscar el ID de la prioridad basándose en el nombre
+  const priorityObj = priorities.find(p => p.nombre === alert.priority);
+  const priorityId = priorityObj ? priorityObj.id.toString() : "";
+
+  setNewAlert({
+    name: alert.name,
+    description: alert.description,
+    priority: priorityId,
+    area: alert.area,
+  });
+  setEditingId(alert.id);
+  setIsDialogOpen(true);
+};
+```
+
+### Update Mutation
+
+```graphql Dashboard.tsx:153-175
+mutation UpdateTipoAlerta($id: Int!, $input: TipoAlertaUpdateInput!) {
+  updateTipoAlerta(id: $id, input: $input) {
+    id
+    nombre
+    descripcion
+    nivelPrioridad {
+      id
+      nombre
+    }
+    tipoEncargado
+  }
+}
+```
+
+**Update Variables:**
+```json
+{
+  "id": 5,
+  "input": {
+    "nombre": "Exceso de velocidad actualizado",
+    "descripcion": "Nueva descripción",
+    "nivelPrioridadId": 3,
+    "tipoEncargado": "SEGURIDAD"
+  }
+}
+```
+
+## Deleting Alert Types
+
+<Warning>
+  **Permanent Action**: Deleting an alert type cannot be undone. Ensure the alert type is no longer in use before deletion.
+</Warning>
+
+### Delete Operation
+
+```tsx Dashboard.tsx:261-292
+const handleDeleteAlert = async (id: string) => {
+  try {
+    const mutation = `
+      mutation DeleteTipoAlerta($id: Int!) {
+        deleteTipoAlerta(id: $id)
+      }
+    `;
+
+    const result = await fetchGraphQL<{ deleteTipoAlerta: boolean }>(
+      "/alerts/graphql",
+      mutation,
+      { id: parseInt(id) }
+    );
+
+    if (result.deleteTipoAlerta) {
+      setAlerts(alerts.filter((alert) => alert.id !== id));
+      toast({
+        title: "Alerta eliminada",
+        description: "La alerta ha sido eliminada del sistema",
+      });
+    } else {
+      throw new Error("No se pudo eliminar la alerta");
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error al eliminar la alerta";
+    toast({
+      title: "Error",
+      description: message,
+      variant: "destructive",
+    });
+  }
+};
+```
+
+## Priority ID Mapping
+
+The system converts priority selections to numeric IDs:
+
+```tsx Dashboard.tsx:125-136
+const getPriorityId = (priority: string): number => {
+  // Si la prioridad es un número (ID), devolverlo
+  const id = parseInt(priority);
+  if (!isNaN(id)) return id;
+  
+  // Fallback para compatibilidad
+  const p = priority.toLowerCase();
+  if (p.includes("alta") || p === "high") return 3;
+  if (p.includes("media") || p === "medium") return 2;
+  if (p.includes("baja") || p === "low") return 1;
+  return 1;
+};
+```
+
+## Validation Requirements
+
+<Tabs>
+  <Tab title="Required Fields">
+    All four fields must be completed:
+    - Alert name (non-empty string)
+    - Description (non-empty string)
+    - Responsible area (valid enum value)
+    - Priority level (valid ID: 1, 2, or 3)
+  </Tab>
+  
+  <Tab title="Data Types">
+    - **nombre**: String
+    - **descripcion**: String
+    - **tipoEncargado**: Enum (MECANICO, SEGURIDAD, OPERADOR_LOGISTICA, SOPORTE_TECNICO)
+    - **nivelPrioridadId**: Integer (1, 2, or 3)
+  </Tab>
+  
+  <Tab title="Error Messages">
+    The system displays toast notifications for:
+    - Missing required fields
+    - GraphQL mutation errors
+    - Network failures
+    - Server validation errors
+  </Tab>
+</Tabs>
+
+## GraphQL Endpoints
+
+All alert management operations use the `/alerts/graphql` endpoint:
+
+```typescript
+const result = await fetchGraphQL(
+  "/alerts/graphql",
+  mutation,
+  variables
+);
+```
+
+The `useGraphQL` hook automatically includes JWT authentication headers for all requests (see [Authentication](/features/authentication)).

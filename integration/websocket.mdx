@@ -1,0 +1,442 @@
+---
+title: 'WebSocket Notifications'
+description: 'Real-time alert notifications using WebSocket connections with SockJS and STOMP'
+icon: 'bolt'
+---
+
+## Overview
+
+FleetGuard360 uses WebSocket connections to deliver real-time alert notifications. The system uses **SockJS** for cross-browser WebSocket support and **STOMP** (Simple Text Oriented Messaging Protocol) for message handling.
+
+## Connection Setup
+
+### WebSocket Endpoint
+
+The WebSocket connection uses a relative path that works with the Vite proxy:
+
+```typescript
+const socket = new SockJS("/notifications/ws-alerts");
+const stompClient = Stomp.over(socket);
+```
+
+### Proxy Configuration
+
+From `vite.config.ts`, WebSocket requests are proxied to the backend:
+
+```typescript
+proxy: {
+  "/notifications": {
+    target: "http://fleetguard-api.ddns.net",
+    changeOrigin: true,
+    ws: true, // Important: enables WebSocket proxying
+    secure: false,
+  },
+}
+```
+
+<Warning>
+  The `ws: true` option is critical for WebSocket proxy support.
+</Warning>
+
+## Using the Hook
+
+### Basic Usage
+
+The `useWebSocketNotifications` hook handles all WebSocket logic:
+
+```typescript
+import { useWebSocketNotifications } from "@/hooks/use-websocket-notifications";
+
+const { isConnected, notifications, connect, disconnect, clearNotifications } = 
+  useWebSocketNotifications({
+    onNotification: (notification) => {
+      console.log("New alert:", notification);
+    },
+    autoConnect: true, // Optional, defaults to true
+  });
+```
+
+### Hook Options
+
+<ParamField path="onNotification" type="function" optional>
+  Callback function called when a new notification arrives.
+</ParamField>
+
+<ParamField path="autoConnect" type="boolean" default="true">
+  Whether to automatically connect on mount. Set to `false` if you want to control connection manually.
+</ParamField>
+
+### Return Values
+
+<ParamField path="isConnected" type="boolean">
+  Current connection status. `true` when connected, `false` otherwise.
+</ParamField>
+
+<ParamField path="notifications" type="AlertNotification[]">
+  Array of received notifications (newest first).
+</ParamField>
+
+<ParamField path="connect" type="function">
+  Manually initiate WebSocket connection.
+</ParamField>
+
+<ParamField path="disconnect" type="function">
+  Manually close WebSocket connection.
+</ParamField>
+
+<ParamField path="clearNotifications" type="function">
+  Clear all stored notifications.
+</ParamField>
+
+## Notification Interface
+
+From `use-websocket-notifications.ts:5-16`:
+
+```typescript
+export interface AlertNotification {
+  id?: string;
+  alertType: string;
+  responsible?: string;
+  priority?: string;
+  driver?: string;
+  generatingUnit: string;
+  state?: string;
+  statusAlert?: string;
+  generationDate: string;
+  message?: string;
+}
+```
+
+### Field Descriptions
+
+<ParamField path="id" type="string" optional>
+  Unique identifier for the alert.
+</ParamField>
+
+<ParamField path="alertType" type="string" required>
+  Type of alert (e.g., "Exceso de velocidad", "Frenado brusco").
+</ParamField>
+
+<ParamField path="responsible" type="string" optional>
+  Responsible party or department (e.g., "Área de monitoreo").
+</ParamField>
+
+<ParamField path="priority" type="string" optional>
+  Priority level: "Alta", "Media", or "Baja".
+</ParamField>
+
+<ParamField path="driver" type="string" optional>
+  Name of the driver associated with the alert.
+</ParamField>
+
+<ParamField path="generatingUnit" type="string" required>
+  Vehicle or unit that generated the alert (e.g., "Camión-123").
+</ParamField>
+
+<ParamField path="state" type="string" optional>
+  Current state of the alert ("En espera", "En proceso", "Resuelto").
+</ParamField>
+
+<ParamField path="statusAlert" type="string" optional>
+  Alternative status field.
+</ParamField>
+
+<ParamField path="generationDate" type="string" required>
+  ISO 8601 timestamp when the alert was generated.
+</ParamField>
+
+<ParamField path="message" type="string" optional>
+  Additional message or description.
+</ParamField>
+
+## Connection Lifecycle
+
+### Connection Establishment
+
+From `use-websocket-notifications.ts:32-46`:
+
+```typescript
+const connect = () => {
+  const socket = new SockJS("/notifications/ws-alerts");
+  const stompClient = Stomp.over(socket);
+
+  // Disable debug logs (optional)
+  stompClient.debug = () => {};
+
+  stompClient.connect(
+    {},
+    (frame) => {
+      console.log("WebSocket conectado:", frame);
+      setIsConnected(true);
+
+      // Subscribe to alerts channel
+      stompClient.subscribe("/all/alerts", (message) => {
+        // Handle incoming messages
+      });
+    },
+    (error) => {
+      console.error("Error en WebSocket:", error);
+      setIsConnected(false);
+    }
+  );
+};
+```
+
+### Subscription Topic
+
+Notifications are published to the `/all/alerts` topic:
+
+```typescript
+stompClient.subscribe("/all/alerts", (message) => {
+  const alert: AlertNotification = JSON.parse(message.body);
+  console.log("Notificación recibida:", alert);
+});
+```
+
+<Note>
+  The topic name `/all/alerts` is configured on the backend STOMP message broker.
+</Note>
+
+## Message Handling
+
+### Parsing Messages
+
+From `use-websocket-notifications.ts:50-66`:
+
+```typescript
+stompClient.subscribe("/all/alerts", (message) => {
+  try {
+    console.log("Mensaje RAW recibido:", message.body);
+    const alert: AlertNotification = JSON.parse(message.body);
+    console.log("Notificación parseada:", alert);
+
+    // Add to notifications array (newest first)
+    setNotifications((prev) => [alert, ...prev]);
+
+    // Trigger callback if provided
+    if (onNotification) {
+      onNotification(alert);
+    }
+  } catch (error) {
+    console.error("Error procesando notificación:", error);
+  }
+});
+```
+
+### State Management
+
+```typescript
+const [isConnected, setIsConnected] = useState(false);
+const [notifications, setNotifications] = useState<AlertNotification[]>([]);
+const stompClientRef = useRef<any>(null);
+```
+
+<Note>
+  Notifications are stored in state and prepended to the array, so the newest notifications appear first.
+</Note>
+
+## Reconnection Logic
+
+### Automatic Reconnection
+
+From `use-websocket-notifications.ts:68-77`:
+
+```typescript
+stompClient.connect(
+  {},
+  (frame) => { /* ... */ },
+  (error) => {
+    console.error("Error en WebSocket:", error);
+    setIsConnected(false);
+
+    // Attempt to reconnect after 5 seconds
+    setTimeout(() => {
+      console.log("Intentando reconectar...");
+      connect();
+    }, 5000);
+  }
+);
+```
+
+<Warning>
+  **Exponential Backoff** - The current implementation uses a fixed 5-second delay. Consider implementing exponential backoff for production.
+</Warning>
+
+## Disconnection
+
+### Manual Disconnect
+
+From `use-websocket-notifications.ts:87-94`:
+
+```typescript
+const disconnect = () => {
+  if (stompClientRef.current?.connected) {
+    stompClientRef.current.disconnect(() => {
+      console.log("WebSocket desconectado");
+      setIsConnected(false);
+    });
+  }
+};
+```
+
+### Auto-disconnect on Unmount
+
+```typescript
+useEffect(() => {
+  if (autoConnect) {
+    connect();
+  }
+
+  return () => {
+    disconnect();
+  };
+}, []);
+```
+
+<Note>
+  The connection is automatically closed when the component unmounts to prevent memory leaks.
+</Note>
+
+## Real-World Example
+
+### Notification Bell Component
+
+From `NotificationBell.tsx:14-27`:
+
+```typescript
+export const NotificationBell = () => {
+  const { toast } = useToast();
+  const [isOpen, setIsOpen] = useState(false);
+
+  const { notifications, isConnected, clearNotifications } = 
+    useWebSocketNotifications({
+      onNotification: (notification) => {
+        // Show toast when notification arrives
+        toast({
+          title: "Nueva Alerta",
+          description: `${notification.alertType} - ${notification.generatingUnit}`,
+          variant: notification.priority?.toLowerCase().includes("alta") 
+            ? "destructive" 
+            : "default",
+        });
+      },
+    });
+
+  const unreadCount = notifications.length;
+  
+  // ... render UI
+};
+```
+
+### Connection Status Indicator
+
+From `NotificationBell.tsx:71-72`:
+
+```tsx
+<span className={`absolute bottom-0 right-0 h-2 w-2 rounded-full ${
+  isConnected ? 'bg-green-500' : 'bg-red-500'
+}`} />
+```
+
+### Displaying Notifications
+
+From `NotificationBell.tsx:98-137`:
+
+```tsx
+{notifications.map((notification, index) => (
+  <div key={`${notification.id || index}`} className="p-4">
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex-1">
+        <h4 className="text-sm font-medium">
+          {notification.alertType}
+        </h4>
+        <p className="text-xs text-gray-400">
+          📍 {notification.generatingUnit}
+        </p>
+        {notification.driver && (
+          <p className="text-xs text-gray-400">
+            👤 Conductor: {notification.driver}
+          </p>
+        )}
+        {notification.responsible && (
+          <p className="text-xs text-gray-400">
+            👨‍💼 Responsable: {notification.responsible}
+          </p>
+        )}
+      </div>
+      {notification.priority && (
+        <Badge className={getPriorityColor(notification.priority)}>
+          {notification.priority}
+        </Badge>
+      )}
+    </div>
+  </div>
+))}
+```
+
+## Toast Integration
+
+Combine WebSocket notifications with toast alerts for better UX:
+
+```typescript
+const { toast } = useToast();
+
+const { notifications } = useWebSocketNotifications({
+  onNotification: (notification) => {
+    // Show different toast variants based on priority
+    const variant = notification.priority?.toLowerCase().includes("alta")
+      ? "destructive"
+      : "default";
+
+    toast({
+      title: "Nueva Alerta",
+      description: `${notification.alertType} - ${notification.generatingUnit}`,
+      variant,
+    });
+  },
+});
+```
+
+## Best Practices
+
+<Note>
+  **Auto-connect by default** - Set `autoConnect: true` for components that should always receive notifications.
+</Note>
+
+<Note>
+  **Manual control** - Use `autoConnect: false` and call `connect()` manually when you need precise control over connection timing.
+</Note>
+
+<Warning>
+  **Clean up on unmount** - The hook automatically disconnects on unmount, but if you're using `autoConnect: false`, ensure you call `disconnect()` when done.
+</Warning>
+
+<Note>
+  **Connection state** - Always check `isConnected` before assuming notifications are being received.
+</Note>
+
+<Note>
+  **Debug mode** - Enable STOMP debug logs during development by removing the `stompClient.debug = () => {}` line.
+</Note>
+
+## Troubleshooting
+
+### Connection Issues
+
+1. **Check proxy configuration** - Ensure `ws: true` is set in `vite.config.ts`
+2. **Verify endpoint** - The backend must serve WebSocket at `/notifications/ws-alerts`
+3. **CORS settings** - Backend must allow WebSocket connections from your origin
+
+### Missing Notifications
+
+1. **Check subscription topic** - Verify `/all/alerts` is the correct topic
+2. **Inspect connection state** - Use `isConnected` to monitor connection status
+3. **Enable debug logs** - Remove `stompClient.debug = () => {}` to see STOMP messages
+
+### Performance
+
+1. **Limit notification history** - Consider trimming the `notifications` array to prevent memory issues:
+   ```typescript
+   setNotifications((prev) => [alert, ...prev].slice(0, 50));
+   ```
+2. **Throttle toast notifications** - Prevent notification fatigue by throttling toast displays

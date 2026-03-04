@@ -1,0 +1,369 @@
+---
+title: 'Statistics Dashboard'
+description: 'Power BI embedded analytics with CSV export functionality'
+icon: 'chart-line'
+---
+
+## Overview
+
+The Statistics Dashboard (`src/pages/Estadisticas.tsx`) provides comprehensive analytics and reporting capabilities through an embedded Power BI dashboard. Operators can visualize alert trends, patterns, and export raw data for further analysis.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Power BI Integration" icon="chart-bar">
+    Embedded interactive dashboard with filtering and drill-down capabilities
+  </Card>
+  
+  <Card title="CSV Export" icon="download">
+    One-click export of alert data in CSV format for offline analysis
+  </Card>
+  
+  <Card title="Real-time Analytics" icon="gauge">
+    Live data visualization tracking alert patterns and frequencies
+  </Card>
+  
+  <Card title="Recurring Alerts" icon="repeat">
+    Identify and analyze alerts that occur frequently across the fleet
+  </Card>
+</CardGroup>
+
+## Power BI Dashboard Embedding
+
+The dashboard embeds a Power BI report using an iframe:
+
+```tsx Estadisticas.tsx:88-99
+<div className="bg-[#141C2F] rounded-lg overflow-hidden shadow-lg">
+  <iframe 
+    title="Informe Fabrica Escuela 2025-2 Alertas" 
+    width="100%" 
+    height="900" 
+    src="https://app.powerbi.com/view?r=eyJrIjoiNDAxZGE3OTUtYjliNi00MjYyLTlmNmItMTA4YTY2NzVmZGQxIiwidCI6Ijk5ZTFlNzIxLTcxODQtNDk4ZS04YWZmLWIyYWQ0ZTUzYzFjMiIsImMiOjR9" 
+    frameBorder="0" 
+    allowFullScreen={true}
+    className="w-full"
+  />
+</div>
+```
+
+<Note>
+  The Power BI report is embedded using a public sharing link with a secure token. The dashboard is 900px tall and fully responsive to container width.
+</Note>
+
+## Power BI Report Details
+
+<ParamField path="title" type="string">
+  "Informe Fabrica Escuela 2025-2 Alertas" - Report identifier for accessibility
+</ParamField>
+
+<ParamField path="src" type="url">
+  Power BI embedded view URL with secure access token
+</ParamField>
+
+<ParamField path="allowFullScreen" type="boolean" default={true}>
+  Enables fullscreen viewing for detailed analysis
+</ParamField>
+
+<ParamField path="height" type="number" default={900}>
+  Dashboard height in pixels (900px)
+</ParamField>
+
+## CSV Export Functionality
+
+The export feature generates and downloads alert data as CSV:
+
+### Export Button
+
+```tsx Estadisticas.tsx:78-86
+<Button 
+  onClick={handleExportCSV}
+  disabled={isExporting}
+  className="bg-[#3B82F6] hover:bg-[#2563EB] text-white font-medium px-6 gap-2"
+>
+  <Download className="h-5 w-5" />
+  {isExporting ? "Exportando..." : "Exportar a CSV"}
+</Button>
+```
+
+### Export Implementation
+
+The CSV export uses a GraphQL query to obtain a pre-signed download URL:
+
+```tsx Estadisticas.tsx:13-61
+const handleExportCSV = async () => {
+  setIsExporting(true);
+  try {
+    toast({
+      title: "Preparando exportación",
+      description: "Generando archivo CSV...",
+    });
+
+    // Obtener la URL de descarga
+    const query = `
+      query {
+        exportAlertsCsvUrl
+      }
+    `;
+
+    const result = await fetchGraphQL<{ exportAlertsCsvUrl: string }>(
+      "/panel/graphql",
+      query
+    );
+
+    const downloadUrl = result.exportAlertsCsvUrl;
+
+    console.log("URL de descarga:", downloadUrl);
+
+    // Opción 1: Descargar directamente usando un link (más simple)
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `alertas_${new Date().toISOString().split('T')[0]}.csv`;
+    link.target = "_blank";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Exportación exitosa",
+      description: "El archivo CSV ha sido descargado correctamente",
+    });
+    
+  } catch (error) {
+    console.error("Error exportando CSV:", error);
+    toast({
+      title: "Error",
+      description: "No se pudo exportar el archivo CSV",
+      variant: "destructive",
+    });
+  } finally {
+    setIsExporting(false);
+  }
+};
+```
+
+## Export Process Flow
+
+<Steps>
+  <Step title="User Initiates Export">
+    User clicks the "Exportar a CSV" button in the dashboard header
+  </Step>
+  
+  <Step title="Request CSV URL">
+    System sends GraphQL query to `/panel/graphql` requesting `exportAlertsCsvUrl`
+  </Step>
+  
+  <Step title="Receive Download URL">
+    Backend generates CSV file and returns a temporary download URL
+  </Step>
+  
+  <Step title="Trigger Download">
+    Client creates a temporary anchor element and programmatically clicks it to download the file
+  </Step>
+  
+  <Step title="Success Notification">
+    Toast notification confirms successful download
+  </Step>
+</Steps>
+
+## GraphQL Export Query
+
+```graphql Estadisticas.tsx:22-26
+query {
+  exportAlertsCsvUrl
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "exportAlertsCsvUrl": "https://storage.example.com/exports/alertas_2026-03-04.csv?token=..."
+  }
+}
+```
+
+<Note>
+  The backend generates a pre-signed URL for secure file access. The URL typically includes authentication tokens and may have a time-based expiration.
+</Note>
+
+## CSV File Naming
+
+Exported files follow a date-based naming convention:
+
+```tsx Estadisticas.tsx:40
+link.download = `alertas_${new Date().toISOString().split('T')[0]}.csv`;
+```
+
+**Example Filenames:**
+- `alertas_2026-03-04.csv`
+- `alertas_2026-03-05.csv`
+
+## Export Loading States
+
+The button shows different states during the export process:
+
+<Tabs>
+  <Tab title="Ready State">
+    **Button Text:** "Exportar a CSV"  
+    **Icon:** Download icon  
+    **Disabled:** No  
+    **Action:** Clicking initiates export
+  </Tab>
+  
+  <Tab title="Exporting State">
+    **Button Text:** "Exportando..."  
+    **Icon:** Download icon  
+    **Disabled:** Yes  
+    **Action:** Prevents multiple concurrent exports
+  </Tab>
+</Tabs>
+
+## Toast Notifications
+
+The export process provides feedback through toast notifications:
+
+### Preparation Notification
+
+```tsx Estadisticas.tsx:16-19
+toast({
+  title: "Preparando exportación",
+  description: "Generando archivo CSV...",
+});
+```
+
+### Success Notification
+
+```tsx Estadisticas.tsx:46-49
+toast({
+  title: "Exportación exitosa",
+  description: "El archivo CSV ha sido descargado correctamente",
+});
+```
+
+### Error Notification
+
+```tsx Estadisticas.tsx:52-57
+toast({
+  title: "Error",
+  description: "No se pudo exportar el archivo CSV",
+  variant: "destructive",
+});
+```
+
+<Warning>
+  Export errors are caught and displayed to users with detailed error messages. Common issues include network failures, backend errors, or authentication problems.
+</Warning>
+
+## Dashboard Header
+
+The statistics page header includes both the title and export button:
+
+```tsx Estadisticas.tsx:69-86
+<div className="bg-[#0A2846] rounded-lg px-6 py-4 mb-6 flex items-center justify-between">
+  <div className="flex items-center gap-3">
+    <BarChart3 className="h-8 w-8 text-[#3B82F6]" />
+    <h1 className="text-2xl font-semibold text-white tracking-wide uppercase">
+      Tablero de Alertas Recurrentes
+    </h1>
+  </div>
+  
+  <Button 
+    onClick={handleExportCSV}
+    disabled={isExporting}
+    className="bg-[#3B82F6] hover:bg-[#2563EB] text-white font-medium px-6 gap-2"
+  >
+    <Download className="h-5 w-5" />
+    {isExporting ? "Exportando..." : "Exportar a CSV"}
+  </Button>
+</div>
+```
+
+## Analytics Capabilities
+
+The embedded Power BI dashboard provides:
+
+<CardGroup cols={2}>
+  <Card title="Alert Frequency Analysis" icon="chart-column">
+    Track how often specific alert types occur over time
+  </Card>
+  
+  <Card title="Trend Visualization" icon="arrow-trend-up">
+    Identify patterns in alert generation across the fleet
+  </Card>
+  
+  <Card title="Interactive Filtering" icon="filter">
+    Drill down by time period, alert type, vehicle, or priority
+  </Card>
+  
+  <Card title="Recurring Alert Detection" icon="rotate">
+    Highlight alerts that repeatedly occur for the same units or drivers
+  </Card>
+</CardGroup>
+
+## CSV Export Use Cases
+
+<Tabs>
+  <Tab title="Offline Analysis">
+    Export data for analysis in Excel, Google Sheets, or other tools
+  </Tab>
+  
+  <Tab title="Long-term Archiving">
+    Create periodic snapshots of alert data for compliance and auditing
+  </Tab>
+  
+  <Tab title="Custom Reporting">
+    Process exported data with custom scripts or BI tools
+  </Tab>
+  
+  <Tab title="Data Integration">
+    Import alert data into other systems for cross-platform analysis
+  </Tab>
+</Tabs>
+
+## Error Handling
+
+The export function includes comprehensive error handling:
+
+```tsx Estadisticas.tsx:51-60
+catch (error) {
+  console.error("Error exportando CSV:", error);
+  toast({
+    title: "Error",
+    description: "No se pudo exportar el archivo CSV",
+    variant: "destructive",
+  });
+} finally {
+  setIsExporting(false);
+}
+```
+
+Common error scenarios:
+- Network connectivity issues
+- GraphQL query failures
+- Backend CSV generation errors
+- Invalid or expired download URLs
+
+## Authentication Requirements
+
+Both the Power BI dashboard and CSV export require authenticated sessions:
+
+```tsx Estadisticas.tsx:10
+const { fetchGraphQL } = useGraphQL();
+```
+
+The `useGraphQL` hook automatically includes JWT tokens in all requests (see [Authentication](/features/authentication)).
+
+<Note>
+  If the user's session expires during export, they will be redirected to the login page with a session expiration message.
+</Note>
+
+## GraphQL Endpoint
+
+Statistics and export queries use the `/panel/graphql` endpoint:
+
+```tsx
+const result = await fetchGraphQL<{ exportAlertsCsvUrl: string }>(
+  "/panel/graphql",
+  query
+);
+```

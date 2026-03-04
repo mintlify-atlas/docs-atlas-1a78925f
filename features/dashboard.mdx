@@ -1,0 +1,363 @@
+---
+title: 'Alert Type Configuration Dashboard'
+description: 'Manage alert types with CRUD operations, priority levels, and responsible areas'
+icon: 'gauge'
+---
+
+## Overview
+
+The Dashboard provides a comprehensive interface for configuring alert types in FleetGuard360. Operators can create, update, and delete alert type definitions with associated priority levels and responsible areas.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Alert Type Management" icon="bell">
+    Create and configure custom alert types with descriptions
+  </Card>
+  
+  <Card title="Priority Assignment" icon="triangle-exclamation">
+    Set priority levels: Alta (High), Media (Medium), Baja (Low)
+  </Card>
+  
+  <Card title="Responsible Areas" icon="users">
+    Assign alerts to specific departments (Mecánico, Seguridad, etc.)
+  </Card>
+  
+  <Card title="Real-time Updates" icon="refresh">
+    Changes are immediately reflected in the system via GraphQL
+  </Card>
+</CardGroup>
+
+## Alert Type Configuration
+
+### Data Structure
+
+Each alert type contains the following fields:
+
+<ParamField path="nombre" type="string" required>
+  The name of the alert type (e.g., "Exceso de velocidad", "Frenado brusco")
+</ParamField>
+
+<ParamField path="descripcion" type="string" required>
+  A brief description explaining when this alert is triggered
+</ParamField>
+
+<ParamField path="nivelPrioridadId" type="number" required>
+  Priority level ID:
+  - `1` = Baja (Low)
+  - `2` = Media (Medium)
+  - `3` = Alta (High)
+</ParamField>
+
+<ParamField path="tipoEncargado" type="string" required>
+  Responsible area enum value:
+  - `MECANICO` - Mechanical team
+  - `SEGURIDAD` - Security team
+  - `OPERADOR_LOGISTICA` - Logistics operator
+  - `SOPORTE_TECNICO` - Technical support
+</ParamField>
+
+## Creating Alert Types
+
+<Steps>
+  <Step title="Open Dialog">
+    Click the "ADD ITEM" button in the top-right corner of the dashboard.
+  </Step>
+  
+  <Step title="Fill Form Fields">
+    Enter the alert name, description, select responsible area and priority level.
+  </Step>
+  
+  <Step title="Save Alert">
+    Click "Agregar Alerta" to create the new alert type via GraphQL mutation.
+  </Step>
+  
+  <Step title="Confirmation">
+    A success toast notification appears and the table updates with the new entry.
+  </Step>
+</Steps>
+
+### Create Mutation
+
+The system uses the following GraphQL mutation to create alert types:
+
+```graphql Dashboard.tsx:177-199
+mutation CreateTipoAlerta($input: TipoAlertaCreateInput!) {
+  createTipoAlerta(input: $input) {
+    id
+    nombre
+    descripcion
+    nivelPrioridad {
+      id
+      nombre
+    }
+    tipoEncargado
+  }
+}
+```
+
+**Variables:**
+```json
+{
+  "input": {
+    "nombre": "Exceso de velocidad",
+    "descripcion": "Vehículo excede el límite de velocidad permitido",
+    "nivelPrioridadId": 3,
+    "tipoEncargado": "SEGURIDAD"
+  }
+}
+```
+
+## Updating Alert Types
+
+<Steps>
+  <Step title="Edit Action">
+    Click the edit icon (pencil) in the Actions column for the alert you want to modify.
+  </Step>
+  
+  <Step title="Modify Fields">
+    The dialog opens pre-filled with current values. Make your changes.
+  </Step>
+  
+  <Step title="Save Changes">
+    Click "Guardar Cambios" to update the alert type.
+  </Step>
+</Steps>
+
+### Update Mutation
+
+```graphql Dashboard.tsx:153-175
+mutation UpdateTipoAlerta($id: Int!, $input: TipoAlertaUpdateInput!) {
+  updateTipoAlerta(id: $id, input: $input) {
+    id
+    nombre
+    descripcion
+    nivelPrioridad {
+      id
+      nombre
+    }
+    tipoEncargado
+  }
+}
+```
+
+**Variables:**
+```json
+{
+  "id": 5,
+  "input": {
+    "nombre": "Updated Alert Name",
+    "descripcion": "Updated description",
+    "nivelPrioridadId": 2,
+    "tipoEncargado": "MECANICO"
+  }
+}
+```
+
+## Deleting Alert Types
+
+<Warning>
+  Deleting an alert type is permanent and cannot be undone. Ensure the alert type is no longer needed before deletion.
+</Warning>
+
+### Delete Mutation
+
+```graphql Dashboard.tsx:263-267
+mutation DeleteTipoAlerta($id: Int!) {
+  deleteTipoAlerta(id: $id)
+}
+```
+
+The mutation returns a boolean indicating success. Upon successful deletion, the alert is removed from the table and a confirmation toast appears.
+
+## Priority Levels
+
+Priority levels are loaded dynamically from the backend:
+
+```graphql Dashboard.tsx:59-66
+query GetAllNivelesPrioridad {
+  nivelesPrioridad {
+    id
+    nombre
+  }
+}
+```
+
+### Priority Color Coding
+
+The dashboard uses color-coded badges to visually distinguish priority levels:
+
+```tsx Dashboard.tsx:292-299
+const getPriorityColor = (priorityId: number) => {
+  switch (priorityId) {
+    case 3: return "bg-priority-critical text-white";
+    case 2: return "bg-priority-medium text-white";
+    case 1: return "bg-aqua-green text-white";
+    default: return "bg-muted text-muted-foreground";
+  }
+};
+```
+
+<Tabs>
+  <Tab title="Alta (High)">
+    **Priority ID:** 3  
+    **Color:** Red (`bg-priority-critical`)  
+    **Usage:** Critical alerts requiring immediate attention
+  </Tab>
+  
+  <Tab title="Media (Medium)">
+    **Priority ID:** 2  
+    **Color:** Yellow (`bg-priority-medium`)  
+    **Usage:** Moderate alerts requiring timely response
+  </Tab>
+  
+  <Tab title="Baja (Low)">
+    **Priority ID:** 1  
+    **Color:** Aqua green (`bg-aqua-green`)  
+    **Usage:** Low-priority informational alerts
+  </Tab>
+</Tabs>
+
+## Responsible Areas
+
+The system supports four predefined responsible areas:
+
+<CardGroup cols={2}>
+  <Card title="MECANICO" icon="wrench">
+    Mechanical team - handles vehicle maintenance and mechanical issues
+  </Card>
+  
+  <Card title="SEGURIDAD" icon="shield">
+    Security team - manages security-related alerts and incidents
+  </Card>
+  
+  <Card title="OPERADOR_LOGISTICA" icon="truck">
+    Logistics operators - coordinates fleet operations and routing
+  </Card>
+  
+  <Card title="SOPORTE_TECNICO" icon="headset">
+    Technical support - resolves system and device issues
+  </Card>
+</CardGroup>
+
+### Area Selection
+
+The area selector is implemented as a dropdown:
+
+```tsx Dashboard.tsx:361-377
+<Select 
+  value={newAlert.area} 
+  onValueChange={(value) => setNewAlert({ ...newAlert, area: value })}
+>
+  <SelectTrigger className="mt-2">
+    <SelectValue placeholder="Selecciona un área" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="MECANICO">Mecánico</SelectItem>
+    <SelectItem value="SEGURIDAD">Seguridad</SelectItem>
+    <SelectItem value="OPERADOR_LOGISTICA">Operador Logística</SelectItem>
+    <SelectItem value="SOPORTE_TECNICO">Soporte Técnico</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+## Alert Table Display
+
+The dashboard displays all configured alert types in a responsive table:
+
+```tsx Dashboard.tsx:420-471
+<Table>
+  <TableHeader>
+    <TableRow className="bg-muted/50">
+      <TableHead className="font-bold text-foreground">Nombre</TableHead>
+      <TableHead className="font-bold text-foreground">Descripción</TableHead>
+      <TableHead className="font-bold text-foreground">Prioridad</TableHead>
+      <TableHead className="font-bold text-foreground">Área Encargada</TableHead>
+      <TableHead className="font-bold text-foreground">Acciones</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    {alerts.map((alert, index) => (
+      <TableRow 
+        key={alert.id} 
+        className={`${index % 2 === 1 ? "bg-light-aqua" : "bg-white"}`}
+      >
+        <TableCell className="font-medium">{alert.name}</TableCell>
+        <TableCell>{alert.description}</TableCell>
+        <TableCell>
+          <Badge className={getPriorityColor(alert.priorityId)}>
+            {alert.priority}
+          </Badge>
+        </TableCell>
+        <TableCell>{alert.area}</TableCell>
+        <TableCell>
+          <div className="flex space-x-2">
+            <Button onClick={() => handleEditAlert(alert)}>
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button onClick={() => handleDeleteAlert(alert.id)}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+    ))}
+  </TableBody>
+</Table>
+```
+
+## Form Validation
+
+The system validates all fields before submission:
+
+```tsx Dashboard.tsx:138-146
+if (!newAlert.name || !newAlert.description || !newAlert.priority || !newAlert.area) {
+  toast({
+    title: "Error",
+    description: "Por favor completa todos los campos",
+    variant: "destructive",
+  });
+  return;
+}
+```
+
+<Note>
+  All four fields (name, description, priority, and area) are required. The form will not submit until all fields contain valid values.
+</Note>
+
+## Error Handling
+
+The dashboard implements comprehensive error handling:
+
+```tsx Dashboard.tsx:235-243
+catch (error: unknown) {
+  const message =
+    error instanceof Error ? error.message : "No se pudo guardar la alerta";
+  toast({
+    title: "Error al guardar la alerta",
+    description: message,
+    variant: "destructive",
+  });
+}
+```
+
+## GraphQL Queries
+
+### Fetch All Alert Types
+
+```graphql Dashboard.tsx:81-94
+query GetAllTipoAlertas {
+  tipoAlertas {
+    id
+    nombre
+    descripcion
+    nivelPrioridad {
+      id
+      nombre
+    }
+    tipoEncargado
+  }
+}
+```
+
+This query loads all existing alert type configurations on page load and maps them to the local state structure.
