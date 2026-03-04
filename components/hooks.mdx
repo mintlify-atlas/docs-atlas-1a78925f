@@ -620,6 +620,76 @@ const Dashboard = () => {
 };
 ```
 
+---
+
+## useIsMobile
+
+The `useIsMobile` hook detects whether the current viewport is mobile-sized (below 768px) using the `window.matchMedia` API.
+
+### Hook Implementation
+
+```tsx src/hooks/use-mobile.tsx
+import * as React from "react";
+
+const MOBILE_BREAKPOINT = 768;
+
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    const onChange = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    };
+    mql.addEventListener("change", onChange);
+    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return !!isMobile;
+}
+```
+
+### Configuration
+
+- **Mobile Breakpoint**: 768px (matches Tailwind's `md` breakpoint)
+- **Initial State**: `undefined` until first measurement
+- **Updates**: Automatically responds to viewport resize events
+
+### Usage
+
+```tsx
+import { useIsMobile } from "@/hooks/use-mobile";
+
+const ResponsiveComponent = () => {
+  const isMobile = useIsMobile();
+
+  return (
+    <div>
+      {isMobile ? (
+        <MobileNav />
+      ) : (
+        <DesktopNav />
+      )}
+    </div>
+  );
+};
+```
+
+### Features
+
+- **Reactive**: Automatically updates when the viewport size changes
+- **Performance**: Uses native `matchMedia` API for efficient media query detection
+- **SSR-safe**: Returns `false` during initial render to prevent hydration mismatches
+- **Cleanup**: Properly removes event listeners on unmount
+
+### Use Cases
+
+- Conditional rendering based on viewport size
+- Mobile vs desktop navigation
+- Responsive component behavior
+- Touch vs mouse interaction detection
+
 <Note>
   All hooks follow React Hook conventions and should only be called at the top level of React components.
 </Note>
