@@ -1,0 +1,106 @@
+{
+  "projectType": "saas",
+  "projectName": "FleetGuard360",
+  "projectDescription": "Intelligent satellite monitoring system for fleet management with real-time alerts, notifications, and comprehensive analytics.",
+  "theme": "palm",
+  "primaryColor": "#0665e9",
+  "lightColor": "#78b4e4",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/authentication",
+              "features/dashboard",
+              "features/alert-management",
+              "features/alert-history",
+              "features/notifications",
+              "features/statistics"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "components/overview",
+              "components/ui-components",
+              "components/hooks",
+              "components/styling"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "integration/graphql-api",
+              "integration/websocket",
+              "integration/powerbi"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/architecture",
+              "development/setup",
+              "development/build-deploy"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "GraphQL",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/alerts",
+              "api/alert-types",
+              "api/statistics"
+            ]
+          },
+          {
+            "group": "WebSocket",
+            "pages": [
+              "api/websocket-notifications"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Real-time WebSocket notifications for fleet alerts",
+    "Alert type configuration and management dashboard",
+    "Historical alert tracking with advanced filtering",
+    "Power BI integration for analytics and reporting",
+    "GraphQL API for backend communication",
+    "JWT-based authentication system",
+    "shadcn/ui component library with 48+ pre-built components",
+    "Responsive design with Tailwind CSS",
+    "CSV export functionality for alert data"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/login",
+    "POST /api/alerts/graphql (getTipoAlertas, createTipoAlerta, updateTipoAlerta, deleteTipoAlerta)",
+    "POST /api/panel/graphql (getAllAlerts, exportAlertsCsvUrl)",
+    "GET /api/panel/graphql (nivelesPrioridad)",
+    "WebSocket /notifications (real-time alert notifications)",
+    "useGraphQL hook",
+    "useWebSocketNotifications hook",
+    "useToast hook",
+    "Sidebar component",
+    "NotificationBell component"
+  ]
+}
